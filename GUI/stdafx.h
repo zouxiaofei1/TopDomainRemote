@@ -6,7 +6,7 @@
 #pragma once
 #define WINVER          _WIN32_WINNT_WINXP
 #define _WIN32_WINNT    _WIN32_WINNT_WINXP
-#include "targetver.h"
+//#include "targetver.h"
 
 #define WIN32_LEAN_AND_MEAN             // 从 Windows 头中排除极少使用的资料
 // Windows 头文件: 
@@ -19,15 +19,7 @@
 #include <tchar.h>
 
 // TODO: 在此处引用程序需要的其他头文件
-#include <aclapi.h>
-#include <locale.h>
-#include <unordered_map>
-#include <TlHelp32.h>
-#include <commdlg.h>
-#include <shellapi.h>
-#include <ctime>
-#include <aclapi.h>
-#include <locale.h>
+#include <map>
 #include <winsock.h>
 #include <WinBase.h>
 #include <stack>

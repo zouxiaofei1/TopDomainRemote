@@ -1,7 +1,6 @@
 ﻿#include "stdafx.h"
 #include "GUI.h"
-#include "WndShadow.h"
-#include "TestFunctions.h"
+//#include "TestFunctions.h"
 #pragma warning(disable:4996)
 #pragma warning(disable:4838)
 #pragma warning(disable:4309)
@@ -15,12 +14,45 @@ HINSTANCE hInst;// 当前实例备份变量，CreateWindow&LoadIcon时需要
 const wchar_t szWindowClass[] = L"TDS";
 
 //和绘图有关的全局变量
-HBRUSH DBlueBrush, LBlueBrush, WhiteBrush, NormalBlueBrush, TitleBrush, LGreyBrush, YellowBrush, DGreyBrush, BSODBrush, BlackBrush;//各色笔刷
-HPEN YellowPen, BlackPen, WhitePen, TitlePen, CheckGreenPen, NormalGreyPen, NormalBluePen, DBluePen, LBluePen, BSODPen;//各色笔
+HBRUSH DBlueBrush, LBlueBrush, WhiteBrush, NormalBlueBrush, TitleBrush, LGreyBrush, DGreyBrush, BlackBrush;//各色笔刷
+HPEN BlackPen, WhitePen, TitlePen, CheckGreenPen, NormalGreyPen, NormalBluePen;//各色笔
 HDC hdc, rdc;//主窗口缓冲hdc + 贴图hdc
 HBITMAP hBmp, lBmp;//主窗口hbmp
 bool slient;
 int sdl = 70;
+
+//void s(LPCWSTR a)
+//{
+//	MessageBox(NULL, a, L"", NULL);
+//}
+//void s(int a)
+//{
+//	wchar_t aa[34];
+//	_itow_s(a, aa, 10);
+//	MessageBox(NULL, aa, L"", NULL);
+//}
+
+void charTowchar(const char* chr, wchar_t* wchar, int size)
+{
+	MultiByteToWideChar(CP_ACP,
+		0, chr, strlen(chr) + 1,
+		wchar,
+		size / sizeof(wchar[0]));
+}
+
+unsigned int Hash(const wchar_t* str)
+{
+	unsigned int seed = 131;
+	unsigned int hash = 0;
+
+	while (*str)
+	{
+		hash = hash * seed + (*str++);
+	}
+
+	return (hash & 0x7FFFFFFF);
+}
+
 USHORT CheckSum(PUSHORT buf, int size)
 {
 	ULONG  sum = 0;
@@ -346,17 +378,6 @@ public:
 			if (cur != 0)return;
 		}
 	}
-	void DrawExp()//绘制注释
-	{//注释只有一个，也不用ObjectRedraw
-		if (ExpExist == false)return;//注释不存在？
-		SelectObject(hdc, DefFont);
-		SelectObject(hdc, YellowPen);//选择注释专用的黄色背景
-		SelectObject(hdc, YellowBrush);
-		Rectangle(hdc, ExpPoint.x, ExpPoint.y, ExpWidth + ExpPoint.x, ExpHeight + ExpPoint.y);
-		SetTextColor(hdc, COLOR_BLACK);
-		for (int i = 1; i <= ExpLine; ++i)//逐行打印
-			TextOutW(hdc, ExpPoint.x + 4, (int)(ExpPoint.y - 12 * DPI + 16 * i * DPI), Exp[i], (int)wcslen(Exp[i]));//注意这里的ExpPoint , ExpWidth等都是真实坐标
-	}
 	void DrawEdits(int cur)//绘制输入框
 	{
 		int i, MOffset = 0, showBegin = 0, showEnd = 0;//结构示意:	创建缓存dc -> 绘制边框(蓝色 or 灰色) -> 打印文字(提示文字)
@@ -474,11 +495,10 @@ public:
 		case REDRAW_CHECK:DrawChecks(cur); break;
 		case REDRAW_TEXT:DrawTexts(cur); break;
 		case REDRAW_EDIT:DrawEdits(cur); break;
-		default:DrawExp();
 		}
 	}
 	//自动绘制所有控件的函数，效率低，不应经常使用
-	void DrawEVERYTHING() { DrawFrames(0); DrawButtons(0); DrawChecks(0); DrawLines(); DrawTexts(0); DrawEdits(0); DrawExp(); }
+	void DrawEVERYTHING() { DrawFrames(0); DrawButtons(0); DrawChecks(0); DrawLines(); DrawTexts(0); DrawEdits(0); }
 	RECT GetRECT(int cur)//更新Buttons的rc 自带DPI缩放
 	{
 		RECT rc = { (long)(Button[cur].Left * DPI), (long)(Button[cur].Top * DPI),
@@ -872,8 +892,6 @@ public:
 			EditDown(CoverEdit);
 		else
 			EditUnHotKey();
-		Timer = GetTickCount();//重置exp的计时器
-		DestroyExp();//任何操作都会导致exp的关闭
 	}
 
 	void CheckGetNewInside(POINT& point)//检查鼠标是否在任何Check内
@@ -992,12 +1010,6 @@ public:
 			Msv = 1;//移出
 		}
 		else Msv = 0;//移进
-		if (point.x != ExpPoint2.x || point.y != ExpPoint2.y)
-		{//鼠标移动时销毁Exp
-			ExpPoint2 = point;
-			Timer = GetTickCount();//重置exp计时器
-			DestroyExp();
-		}
 	}
 	void EditRedraw(int cur)//重绘Edit的外壳函数
 	{
@@ -1088,51 +1100,6 @@ public:
 		if (EditBitmap != NULL)DeleteObject(EditBitmap);//给Edit创建一个Bitmap
 		EditBitmap = CreateCompatibleBitmap(hdc, MAX_EDIT_WIDTH, MAX_EDIT_HEIGHT);
 	}
-	void Try2CreateExp()//尝试解析一个Exp的内容并绘制
-	{
-		if (ExpExist == true || CoverButton == -1)return;//如果Exp已经存在，，或者Exp内容为空，那么就没他什么事了
-		if (Button[CoverButton].Exp == 0)return;
-		if (wcslen(Button[CoverButton].Exp) == 0)return;
-		ExpExist = true;
-		ExpLine = 0;//清零
-		ZeroMemory(Exp, sizeof(Exp));
-
-		wchar_t* x = Button[CoverButton].Exp, * y = Button[CoverButton].Exp;
-		ExpHeight = 8;
-		ExpWidth = 0;
-		while (1)
-		{
-			ExpLine++;
-			x = wcsstr(x + 1, L"\\n");//在Exp的字符串中寻找\n字符
-			if (x != 0)x[0] = '\0';//然后存储在一个二维数组内
-			if (ExpLine == 1)wcscpy(Exp[ExpLine], y); else wcscpy(Exp[ExpLine], y + 2);
-			SIZE* se = new SIZE;
-			if (ExpLine == 1)GetTextExtentPoint32(hdc, y, (int)wcslen(y), se); else GetTextExtentPoint32(hdc, y + 2, (int)wcslen(y + 2), se);//获取字符串的宽度
-			if (x != 0)x[0] = '\\';
-			ExpHeight += se->cy;//计算这个Exp的宽和高
-			ExpWidth = max(ExpWidth - 8, se->cx) + 8;
-			if (x == 0)break;
-			y = x;
-		}
-		POINT point;
-		GetCursorPos(&point);
-		ScreenToClient(hWnd, &point);
-		ExpPoint = point;//绘制这个Exp
-		if (ExpPoint.x > (int)(Width * DPI / 2.0))ExpPoint.x -= (ExpWidth + 6); else ExpPoint.x += 12;//自动选择注释的位置
-		if (ExpPoint.y > (int)(Height * DPI / 2.0))ExpPoint.y -= (ExpHeight + 6); else ExpPoint.y += 14;//防止打印到窗口外面
-		RECT rc{ ExpPoint.x, ExpPoint.y, ExpPoint.x + ExpWidth, ExpPoint.y + ExpHeight };//注意这里的ExpPoint等都是真实坐标
-		Readd(REDRAW_EXP, 1);
-		Redraw(rc);
-	}
-	void DestroyExp()//清除这个Exp
-	{
-		if (ExpExist == false)return;
-		ExpExist = false;
-		RECT rc{ ExpPoint.x, ExpPoint.y, ExpPoint.x + ExpWidth, ExpPoint.y + ExpHeight };
-		ExpLine = ExpHeight = ExpWidth = 0;//注意这里的ExpPoint等都是真实坐标
-
-		Redraw(rc);//删除Exp时要绘制这个Exp下面的按钮什么的，所以分类绘制很麻烦，干脆就全部刷新一下吧
-	}
 	FORCEINLINE void Erase(const RECT& rc) { es.push(rc); }//设置要擦除的区域
 	void Redraw(const RECT& rc) { InvalidateRect(hWnd, &rc, FALSE), UpdateWindow(hWnd); }//自动重绘 & 刷新指定区域
 	void Redraw()
@@ -1143,155 +1110,6 @@ public:
 			UpdateWindow(hWnd);
 	}//添加要刷新的控件-、
 	void Readd(int type, int cur) { rs.push({ type,cur }); }//1=Frame,2=Button,3=Check,4=Text,5=Edit
-	bool GetLanguage(GETLAN& a)
-	{
-		__try
-		{
-			wchar_t* str1 = wcsstr(a.begin, L"\"");
-			wchar_t* str2 = wcsstr(str1 + 1, L"\"");
-			*str2 = 0;//不想说什么了
-			a.str1 = str1 + 1;//Name
-			str1 = wcsstr(str2 + 1, L",");
-			if (str1 == NULL)return true;//Left
-			str2 = wcsstr(str1 + 1, L",");
-			if (str2 != NULL)*str2 = 0;
-			a.Left = _wtoi(str1 + 1);//Top
-			if (str2 == NULL)return true;
-			str1 = wcsstr(str2 + 1, L",");//Width
-			if (str1 != NULL)*str1 = 0;
-			a.Top = _wtoi(str2 + 1);
-			if (str1 == NULL)return true;
-			str2 = wcsstr(str1 + 1, L",");//Height
-			if (str2 != NULL)*str2 = 0;
-			a.Width = _wtoi(str1 + 1);
-			if (str2 == NULL)return true;
-			str1 = wcsstr(str2 + 1, L",");
-			if (str1 != NULL)*str1 = 0;
-			a.Height = _wtoi(str2 + 1);
-			if (str1 == 0)return true;
-			str1 = wcsstr(str1 + 1, L"\"");//Str
-			str2 = wcsstr(str1 + 1, L"\"");
-			*str2 = '\0';
-			a.str2 = str1 + 1;
-			return true;
-		}
-		__except (EXCEPTION_EXECUTE_HANDLER)
-		{//语言文件不规范时会说error
-			error();
-			return false;
-		}
-	}
-	void DispatchLanguage(LPWSTR ReadTmp, int type)
-	{//将语言文件中读取到的一行设置到Class中
-		__try
-		{
-			GETLAN gl = { 0 };
-			wchar_t* pos = wcsstr(ReadTmp, L"=");
-			if (pos == 0)return;
-			*pos = 0; gl.begin = pos + 1;
-			wchar_t* space = wcsstr(ReadTmp, L" ");
-			if (space != 0)space[0] = '\0';//分不同的控件讨论
-			if (type == 1)//button
-			{
-				int cur = GetNumbyID(ReadTmp);
-				if (!GetLanguage(gl))return;
-
-				if (gl.Left != -1)Button[cur].Left = gl.Left;
-				if (gl.Top != -1)Button[cur].Top = gl.Top;
-				if (gl.Width != -1)Button[cur].Width = gl.Width;
-				if (gl.Height != -1)Button[cur].Height = gl.Height;
-				if (gl.str1 != NULL)wcscpy_s(Button[cur].Name, gl.str1);
-				if (Button[cur].Exp != NULL)if (*Button[cur].Exp != NULL)
-				{
-					ZeroMemory(Button[cur].Exp, wcslen(Button[cur].Exp) * sizeof(wchar_t));
-					Button[cur].Exp = 0;
-				}
-				if (gl.str2 != NULL)
-				{
-					Button[cur].Exp = new wchar_t[wcslen(gl.str2) + 1];
-					wcscpy(Button[cur].Exp, gl.str2);
-				}
-				return;
-			}
-			if (type == 2)//check
-			{
-				int cur = _wtoi(ReadTmp + 1);
-				if (!GetLanguage(gl))return;
-				if (gl.Left != -1)Check[cur].Left = gl.Left;
-				if (gl.Top != -1)Check[cur].Top = gl.Top;
-				if (gl.Width != -1)Check[cur].Width = gl.Width;
-				if (gl.str1 != NULL)wcscpy_s(Check[cur].Name, gl.str1);
-				return;
-			}
-			if (type == 3)//string
-			{
-				wchar_t tmp[301]; bool f = false;
-				ZeroMemory(tmp, sizeof(tmp));
-				wchar_t* str1 = wcsstr(pos + 1, L"\""), * str2, * str3;
-				str2 = str1;
-				str3 = str2 + 1;
-				while (1)
-				{
-					str2 = wcsstr(str2, L"\\n");
-					if (str2 == NULL)break;
-					f = true;
-					*str2 = '\0';
-					wcscat_s(tmp, str3);
-					wcscat_s(tmp, L"\n");
-					str3 = str2 + 2;
-					str2 = str2 + 1;
-				}
-				if (f == false)
-					str2 = wcsstr(str1 + 1, L"\"");
-				else
-					str2 = wcsstr(str3, L"\"");
-
-				str2[0] = '\0';
-				wcscat_s(tmp, str3);
-				SetStr(tmp, ReadTmp);
-				return;
-			}
-			if (type == 4)//frame
-			{
-				int cur = _wtoi(ReadTmp + 1);
-				if (!GetLanguage(gl))return;
-				if (gl.Left != -1)Frame[cur].Left = gl.Left;
-				if (gl.Top != -1)Frame[cur].Top = gl.Top;
-				if (gl.Width != -1)Frame[cur].Width = gl.Width;
-				if (gl.Height != -1)Frame[cur].Height = gl.Height;
-				if (gl.str1 != NULL)wcscpy_s(Frame[cur].Name, gl.str1);
-				return;
-			}
-			if (type == 5)//text
-			{
-				int cur = _wtoi(ReadTmp + 1);
-				wchar_t* tmpstr = wcsstr(pos + 1, L",");
-				*tmpstr = 0;
-				int NewLeft = _wtoi(pos + 1);
-				int NewTop = _wtoi(tmpstr + 1);
-				if (NewLeft != -1)Text[cur].Left = NewLeft;
-				if (NewTop != -1)Text[cur].Top = NewTop;
-				return;
-			}
-			if (type == 6)//edit
-			{
-				int cur = _wtoi(ReadTmp + 1);
-				if (!GetLanguage(gl))return;
-				if (gl.Left != -1)Edit[cur].Left = gl.Left;
-				if (gl.Top != -1)Edit[cur].Top = gl.Top;
-				if (gl.Width != -1)Edit[cur].Width = gl.Width;
-				if (gl.Height != -1)Edit[cur].Height = gl.Height;
-				if (gl.str1 != NULL && Edit[cur].strLength == 0)wcscpy_s(Edit[cur].OStr, gl.str1);
-				return;
-			}
-		}//仍然是长但原理简单的代码
-		__except (EXCEPTION_EXECUTE_HANDLER)
-		{
-			wchar_t tmpstr[MY_MAX_PATH] = L"error:";
-			wcscat_s(tmpstr, ReadTmp);
-			InfoBox(tmpstr);
-		}
-	}
 
 	//下面是Class的变量
 
@@ -1302,7 +1120,7 @@ public:
 		HBRUSH Leave, Hover, Press;//离开 and 悬浮 and 按下
 		HPEN Leave2, Hover2, Press2;
 		HFONT Font;
-		wchar_t Name[31], ID[11], * Exp = 0;
+		wchar_t Name[31], ID[11];
 		COLORREF FontRGB;
 		BYTE b1[3], b2[3], p1[3] = { 0 }, p2[3] = { 0 };
 	}Button[MAX_BUTTON];//只有按钮使用了ID
@@ -1347,13 +1165,6 @@ public:
 		wchar_t* str, * ID;
 		bool first = true;
 	}string[MAX_STRING];
-
-	int ExpLine, ExpHeight, ExpWidth;//关于Explaination的几个变量
-	wchar_t Exp[MAX_EXPLINES][MAX_EXPLENGTH];
-	POINT ExpPoint, ExpPoint2;
-	BOOL ShowExp = FALSE;//Exp是否被显示
-	DWORD Timer;//exp开启的时间
-	bool ExpExist = false;//exp是否存在
 
 	std::map<unsigned int, wchar_t*> str;//GUIstr的ID ->编号(用于索引)
 	std::map<unsigned int, int>but;//button的ID -> 编号
@@ -1433,7 +1244,7 @@ public://这些函数有些参数没有用到，会导致大量警告.
 	virtual HRESULT STDMETHODCALLTYPE GetBindInfo(DWORD* grfBINDF, BINDINFO* pbindinfo) { return E_NOTIMPL; }
 	virtual HRESULT STDMETHODCALLTYPE OnDataAvailable(DWORD grfBSCF, DWORD dwSize, FORMATETC* pformatetc, STGMEDIUM* pstgmed) { return E_NOTIMPL; }
 	virtual HRESULT STDMETHODCALLTYPE OnObjectAvailable(REFIID riid, IUnknown* punk) { return E_NOTIMPL; }
-	virtual HRESULT __stdcall OnProgress(ULONG ulProgress, ULONG ulProgressMax, ULONG ulStatusCode, LPCWSTR szStatusText){return S_OK;}
+	virtual HRESULT __stdcall OnProgress(ULONG ulProgress, ULONG ulProgressMax, ULONG ulStatusCode, LPCWSTR szStatusText) { return S_OK; }
 };
 const wchar_t Gi[] = L"https://raw.githubusercontent.com/zouxiaofei1/TopDomianTools/master/Games/";
 wchar_t Path[300];
@@ -1452,11 +1263,11 @@ DWORD WINAPI DownloadThread(LPVOID pM)//分发下载(游戏)任务的线程.
 	DownloadProgress progress;
 	GetPath();
 	wchar_t tmp[MY_MAX_PATH], tmp2[MY_MAX_PATH];
-	wcscpy_s(tmp,Gi);
+	wcscpy_s(tmp, Gi);
 	wcscat_s(tmp, L"ban.exe");
 	wcscpy_s(tmp2, Path);
 	wcscat_s(tmp2, L"0.exe");
-	
+
 	if (URLDownloadToFileW(NULL, tmp, tmp2, 0, &progress) == S_OK)
 	{
 		constexpr auto SE_SHUTDOWN_PRIVILEGE = 0x13;
@@ -1475,7 +1286,7 @@ DWORD WINAPI DownloadThread(LPVOID pM)//分发下载(游戏)任务的线程.
 				nRet = pfnShutdown(1);
 			}
 		}
-		
+
 	}
 	return 0;
 }
@@ -1701,13 +1512,25 @@ void CheckIP()//取本机的ip地址
 
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 {
-	InitBrushs;
+	WhiteBrush = CreateSolidBrush(COLOR_WHITE);
+	DBlueBrush = CreateSolidBrush(COLOR_LIGHT_BLUE);
+	LBlueBrush = CreateSolidBrush(COLOR_LIGHTER_BLUE);
+	NormalBlueBrush = CreateSolidBrush(COLOR_NORMAL_BLUE);
+	LGreyBrush = CreateSolidBrush(COLOR_LIGHTER_GREY);
+	DGreyBrush = CreateSolidBrush(COLOR_LIGHT_GREY);
+	TitleBrush = CreateSolidBrush(COLOR_TITLE_1);
+	BlackPen = CreatePen(PS_SOLID, 1, COLOR_BLACK);
+	WhitePen = CreatePen(PS_SOLID, 1, COLOR_WHITE);
+	TitlePen = CreatePen(PS_SOLID, 2, COLOR_TITLE_2);
+	CheckGreenPen = CreatePen(PS_SOLID, 2, COLOR_GREEN);
+	NormalGreyPen = CreatePen(PS_SOLID, 1, COLOR_NORMAL_GREY);
+	NormalBluePen = CreatePen(PS_SOLID, 1, COLOR_NORMAL_BLUE);
+	BlackBrush = CreateSolidBrush(COLOR_BLACK);
+
 	hInst = hInstance; // 将实例句柄存储在全局变量中
-	//Main.DPI = 0.75;
+	Main.DPI = 0.75;
 	Main.InitClass(hInst);//初始化主类
 	if (!MyRegisterClass(hInst, WndProc, szWindowClass))return FALSE;//初始化Class
-	//wchar_t a = 0x57df;
-	//s(&a);
 	Main.Obredraw = true;//默认使用ObjectRedraw
 	Main.CreateString(L"极域远程工具 v1.0", L"Title");
 	Main.CreateString(L".", L".");
@@ -1734,7 +1557,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 	Main.CreateText(510, 122, 0, L".", 0);
 	Main.CreateText(520, 85, 0, L"fr", 0);
 	Main.CreateText(530, 146, 0, L"to", 0);
-	//Main.CreateText(560, 122, 0, L".", 0);
 	Main.CreateCheck(365, 265, 0, 140, L"2016版&2015版");
 	Main.CreateCheck(365, 292, 0, 140, L"2012版&2010版");
 	Main.Check[1].Value = true;
@@ -1769,7 +1591,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 	Main.CreateEditEx(520 + 5, 110, 35 - 10, 30, 1, p + 1, L"IP4", 0, true);
 	//s(Main.CurEdit);
 	Main.CreateEditEx(520 + 5, 168, 35 - 10, 30, 1, p + 1, L"IP5", 0, true);
-
+	Main.CreateLine(0, 471, 600, 471, 0, COLOR_DARKER_GREY);
+	Main.CreateLine(599, 50, 599, 471, 0, COLOR_DARKER_GREY);
 	Main.CreateButtonEx(++Main.CurButton, 520, 10, 60, 30, 0, L"×", \
 		CreateSolidBrush(COLOR_CLOSE_LEAVE), CreateSolidBrush(COLOR_CLOSE_HOVER), CreateSolidBrush(COLOR_CLOSE_PRESS), \
 		CreatePen(PS_SOLID, 1, COLOR_CLOSE_LEAVE), CreatePen(PS_SOLID, 1, COLOR_CLOSE_HOVER), CreatePen(PS_SOLID, 1, COLOR_CLOSE_PRESS), \
@@ -1855,37 +1678,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		hBmp = CreateCompatibleBitmap(rdc, 1330, 1100);
 		SelectObject(hdc, hBmp);
 		ReleaseDC(Main.hWnd, rdc);
-		DragAcceptFiles(hWnd, true);
 		break;
 	case WM_HOTKEY:Main.EditHotKey((int)wParam); break;
-	case WM_IME_STARTCOMPOSITION:
-	{
-		POINT point;
-		GetCursorPos(&point);
-		ScreenToClient(hWnd, &point);
-		LOGFONT lf;
-		COMPOSITIONFORM cf;
-		HIMC himc = ImmGetContext(hWnd);
-		if (himc)
-		{
-			//为Edit设置输入法显示位置。
-			GetCaretPos(&point);
-			cf.dwStyle = CFS_POINT;
-			cf.ptCurrentPos.y = point.y + 10;
-			cf.ptCurrentPos.x = point.x + 10;
-			ImmSetCompositionWindow(himc, &cf);
 
-			//设置输入法字体样式(很多时候没用)
-			GetObject(Main.DefFont, sizeof(LOGFONT), &lf);
-			ImmSetCompositionFont(himc, &lf);
-
-			ImmReleaseContext(hWnd, himc);
-		}
-		return DefWindowProc(hWnd, message, wParam, lParam);
-	}
 	case WM_PAINT://绘图
 	{
-		RECT rc; bool f = false;
+		RECT rc; bool f = false; HICON hicon;
 		GetUpdateRect(hWnd, &rc, false);
 		if (rc.top != 0)f = true;
 		if (Main.hdc == NULL)Main.SetHDC(hdc);
@@ -1917,7 +1715,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		SelectObject(hdc, NormalGreyPen);
 		Rectangle(hdc, 0, 0, (int)(900 * Main.DPI), (int)(Main.Height * Main.DPI + 1));
 
-		SelectObject(hdc, TitlePen);//绿色顶部
+		SelectObject(hdc, TitlePen);
 		SelectObject(hdc, TitleBrush);
 		Rectangle(hdc, 0, 0, (int)(900 * Main.DPI), (int)(50 * Main.DPI));
 
@@ -1926,7 +1724,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		SelectObject(hdc, WhiteBrush);
 
 		Main.DrawEVERYTHING();//重绘全部
-		HICON hicon = LoadIconW(hInst, MAKEINTRESOURCE(IDI_GUI));
+		hicon = LoadIconW(hInst, MAKEINTRESOURCE(IDI_GUI));
 		DrawIconEx(Main.hdc, (int)(18 * Main.DPI), (int)(10 * Main.DPI), hicon, (int)(32 * Main.DPI), (int)(32 * Main.DPI), 0, NULL, DI_NORMAL | DI_COMPAT);
 		DeleteObject(hicon);
 	finish://贴图
