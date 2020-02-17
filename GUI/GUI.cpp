@@ -5,6 +5,7 @@
 #pragma warning(disable:4838)
 #pragma warning(disable:4309)
 #pragma comment(lib,"ws2_32.lib")
+#pragma comment(lib,"Iphlpapi.lib")
 //部分(重要)函数的前向声明
 BOOL				InitInstance(HINSTANCE, int);//初始化
 LRESULT	CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);//主窗口
@@ -20,17 +21,23 @@ HDC hdc, rdc;//主窗口缓冲hdc + 贴图hdc
 HBITMAP hBmp, lBmp;//主窗口hbmp
 bool slient;
 int sdl = 70;
+HWND List;
 
-//void s(LPCWSTR a)
-//{
-//	MessageBox(NULL, a, L"", NULL);
-//}
-//void s(int a)
-//{
-//	wchar_t aa[34];
-//	_itow_s(a, aa, 10);
-//	MessageBox(NULL, aa, L"", NULL);
-//}
+void s(LPCSTR a)
+{
+	MessageBoxA(NULL, a, "", NULL);
+}
+
+void s(LPCWSTR a)
+{
+	MessageBox(NULL, a, L"", NULL);
+}
+void s(int a)
+{
+	wchar_t aa[34];
+	_itow_s(a, aa, 10);
+	MessageBox(NULL, aa, L"", NULL);
+}
 
 void charTowchar(const char* chr, wchar_t* wchar, int size)
 {
@@ -53,6 +60,18 @@ unsigned int Hash(const wchar_t* str)
 	return (hash & 0x7FFFFFFF);
 }
 
+unsigned int Hash(const char* str)
+{
+	unsigned int seed = 131;
+	unsigned int hash = 0;
+
+	while (*str)
+	{
+		hash = hash * seed + (*str++);
+	}
+
+	return (hash & 0x7FFFFFFF);
+}
 USHORT CheckSum(PUSHORT buf, int size)
 {
 	ULONG  sum = 0;
@@ -1358,18 +1377,18 @@ void shutdown2010(char* a, int cse)
 	char cc[583] = { 0x44,0x4d,0x4f,0x43,0x00,0x00,0x01,0x00,0x2a,0x02,0x00,0x00,0x70,0xc5,0x84,0xb1,0x6c,0xa1,0x55,0x4c,0x9f,0x55,0x46,0x27,0x77,0x37,0x73,0x5d,0x20,0x4e,0,0,0xc0,0xa8,0x50,0x01,0x1d,0x02,0x00,0x00,0x1d,0x02,0x00,0x00 ,0x00 ,0x02 ,0x00 ,0x00,0x00 ,0x00 ,0x00 ,0x00 ,0x02 ,0x00 ,0x00 ,0x10 ,0x0f ,0x00 ,0x00 ,0x00 ,0x01 ,0x00 ,0x00 ,0x00 ,0x00,0x00 ,0x00 ,0x00 ,0x59 ,0x65 ,0x08 ,0x5e ,0x06 ,0x5c ,0x73 ,0x51 ,0xed ,0x95 ,0xa8 ,0x60 ,0x84 ,0x76 ,0x94 ,0x5e ,0x28 ,0x75 ,0x0b ,0x7a ,0x8f ,0x5e };
 	if (cse == 1)
 	{
-		aa[19] = GetTickCount();
+		aa[19] = (char)GetTickCount();
 		sendto(sockClient, aa, 582, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
 	if (cse == 2)
 	{
-		bb[19] = GetTickCount();
+		bb[19] = (char)GetTickCount();
 		sendto(sockClient, bb, 582, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
 	if (cse == 3)
 	{
-		cc[19] = GetTickCount();
-		cc[20] = GetTickCount() * 2;
+		cc[19] = (char)GetTickCount();
+		cc[20] = (char)(GetTickCount() * 2);
 		sendto(sockClient, cc, 582, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
 	closesocket(sockClient);
@@ -1405,25 +1424,25 @@ void shutdown2016(char* a, int cse)
 	char dd[226] = { 0x44,0x4d,0x4f,0x43,0x00,0x00,0x01,0x00,0xc6,0x00,0x00,0x00,0x41,0xe2,0xe9,0x39,0x5a,0xa3,0x0b,0x44,0x94,0xbd,0x7b,0xcc,0xf2,0x95,0x0d,0xe8,0x20,0x4e,0x00,0x00,0xc0,0xa8,0x50,0x01,0xb9,0x00,0x00,0x00,0xb9,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x04,0x00,0x00,0x20,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0xe1,0x02,0x03,0x0b,0xa6,0x17,0xe1,0x02,0x03,0x0c,0xa9,0x17,0x01,0x00,0x11,0x2b,0x00,0x00,0x10,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x5e,0x01,0x00,0x00,0x31,0x00,0x31,0x00,0x02,0x00,0x00,0x00,0x00,0x50,0x00,0x00,0xa0,0x05,0x00,0x00,0x01,0x00,0x00,0x00,0x19,0x00,0x00,0x00,0x4b,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xc0,0xa8,0x50,0x01,0x04,0x00,0x00,0x00,0x0c,0x00,0x00,0x00,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x03,0xe0,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
 	if (cse == 1)
 	{
-		aa[19] = GetTickCount();
+		aa[19] = (char)GetTickCount();
 		sendto(sockClient, aa, 582, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
 	if (cse == 2)
 	{
-		bb[19] = GetTickCount();
+		bb[19] = (char)GetTickCount();
 		sendto(sockClient, bb, 582, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
 	if (cse == 3)
 	{
-		cc[19] = GetTickCount();
-		cc[20] = GetTickCount() * 2;
+		cc[19] = (char)GetTickCount();
+		cc[20] = (char)(GetTickCount() * 2);
 		sendto(sockClient, cc, 582, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
 	if (cse == 4)
 	{
 		//s(0);
-		dd[19] = GetTickCount();
-		dd[20] = GetTickCount() * 2;
+		dd[19] = (char)GetTickCount();
+		dd[20] = (char)(GetTickCount() * 2);
 		sendto(sockClient, dd, 226, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 		//	sendto(sockClient, ee,44, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 
@@ -1466,15 +1485,15 @@ void text2016(char* a, int cse, char* text, int len)
 	{
 		//strcat(aa, text);
 		//aa[58] = 0;
-		aa[19] = GetTickCount();
-		aa[20] = GetTickCount() * 2;
+		aa[19] = (char)GetTickCount();
+		aa[20] = (char)(GetTickCount() * 2);
 		for (int i = 60; i < 60 + len * 2; ++i)aa[i] = text[i - 60];
 		sendto(sockClient, aa, 906, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
 	if (cse == 2)
 	{
-		cc[19] = GetTickCount();
-		cc[20] = GetTickCount() * 2;
+		cc[19] = (char)GetTickCount();
+		cc[20] = (char)(GetTickCount() * 2);
 		for (int i = 60; i < 60 + len * 2; ++i)cc[i] = text[i - 60];
 		sendto(sockClient, cc, 955, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 
@@ -1483,8 +1502,8 @@ void text2016(char* a, int cse, char* text, int len)
 	{
 		//strcat(aa, text);
 		//aa[58] = 0;
-		bb[19] = GetTickCount();
-		bb[20] = GetTickCount() * 2;
+		bb[19] = (char)GetTickCount();
+		bb[20] = (char)(GetTickCount() * 2);
 		for (int i = 56; i < 56 + len * 2; ++i)bb[i] = text[i - 56];
 		sendto(sockClient, bb, 955, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
@@ -1494,6 +1513,8 @@ void text2016(char* a, int cse, char* text, int len)
 	return;
 }
 char ip[30];
+char Allips[20][30];
+int numofips, curips;
 void CheckIP()//取本机的ip地址  
 {
 	WSADATA wsaData;
@@ -1504,12 +1525,135 @@ void CheckIP()//取本机的ip地址
 		if (gethostname(name, sizeof(name)) == 0)
 			if ((hostinfo = gethostbyname(name)) != NULL)
 			{//wip存ip地址字符串
-				strcpy(ip, inet_ntoa(*(struct in_addr*) * hostinfo->h_addr_list));
+				strcpy(ip, inet_ntoa(*(struct in_addr*)hostinfo->h_addr_list[0]));
+				for (numofips = 0; hostinfo != NULL && hostinfo->h_addr_list[numofips] != NULL; numofips++)
+				{
+					strcpy(Allips[numofips], inet_ntoa(*(struct in_addr*)hostinfo->h_addr_list[numofips]));
+					if (numofips > 19)break;
+				}
 			}//清理
 		WSACleanup();
 	}
 }
 
+void RefreshIP(char* a)
+{
+	char b[30];
+	strcpy_s(b, a);
+	wchar_t temp[39] = { 0 }, * p = temp, * p2 = temp;
+	charTowchar(b, temp, sizeof(b));
+	//s(temp);
+	p = wcsstr(p2, L".");
+	*p = 0;
+	Main.SetEditStrOrFont(p2, 0, 4);
+	p2 = p + 1;
+	p = wcsstr(p2, L".");
+	*p = 0;
+	Main.SetEditStrOrFont(p2, 0, 5);
+	p2 = p + 1;
+	p = wcsstr(p2, L".");
+	*p = 0;
+	Main.SetEditStrOrFont(p2, 0, 6);
+	Main.SetEditStrOrFont(p + 1, 0, 7);
+	Main.SetEditStrOrFont(p + 1, 0, 8);
+}
+struct SearchThreada
+{
+	int a;
+	bool b;
+};
+std::map<unsigned int, SearchThreada>addrmap;
+char curip[30];
+#include <iphlpapi.h>
+
+DWORD WINAPI SearchThread(LPVOID pM)
+{
+	SearchThreada d = *(SearchThreada*)pM;
+	int cur = d.a;
+	char ip2[30], at[100];
+	strcpy_s(ip2, curip);
+	strcat_s(ip2, ".");
+	_itoa_s(cur, at, 10);
+	strcat_s(ip2, at);
+	int  l = Hash(ip2);
+	if ((addrmap[l].a && addrmap[l].b) || (addrmap[l].a && !addrmap[l].b && !d.b))return 0;
+	if (d.b)
+	{
+		unsigned int addr = inet_addr(ip2);
+
+		struct hostent* pHost1 = gethostbyaddr((char*)&addr, 4, PF_INET);
+		if (pHost1)
+		{
+			wchar_t wat[101];
+			strcpy_s(at, ip2);
+			if (addrmap[l].a == TRUE && addrmap[l].b == true)return 0;
+			addrmap[l].a = addrmap[l].b = true;
+			strcat_s(at, "|");
+			strcat_s(at, pHost1->h_name);
+			//s(wat);
+			MultiByteToWideChar(CP_ACP, 0, at, -1, wat, 100);
+			SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wat);
+		}
+	}
+	else
+	{
+		IPAddr ipaddr = inet_addr(ip2);
+		ULONG ulHopCount, ulRTT;
+		if ((BOOL)GetRTTAndHopCount(ipaddr, &ulHopCount, 1, &ulRTT))
+		{
+			wchar_t wat[101];
+			strcpy_s(at, ip2);
+			strcat_s(at, "|未知名称");
+			if (addrmap[l].a == TRUE)return 0;
+			addrmap[l].a = true;
+			MultiByteToWideChar(CP_ACP, 0, at, -1, wat, 100);
+			SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wat);
+		}
+	}
+	return 0;
+}
+DWORD WINAPI SearchThreadStarter(LPVOID pM)
+{
+	char a[30];
+	strcpy(a, (const char*)pM);
+	char b[30];
+	strcpy_s(b, a);
+	*strrchr(b, '.') = 0;
+	strcpy_s(curip, b);
+	for (int i = 0; i < 256; ++i)
+	{
+		SearchThreada c = { i,false };
+		CreateThread(NULL, 0, SearchThread, &c, 0, NULL);
+		Sleep(1);
+		c.b = true;
+		CreateThread(NULL, 0, SearchThread, &c, 0, NULL);
+		Sleep(1);
+	}
+	return 0;
+}
+void SearchComputers(char* a)
+{
+	CreateThread(0, 0, SearchThreadStarter, a, 0, NULL);
+	Sleep(2);
+}
+
+DWORD WINAPI SearchAll(LPVOID pM)
+{
+	for (int i = 0; i < numofips; ++i)
+	{
+		Sleep(500);
+		SearchComputers(Allips[i]);
+		Sleep(1000);
+	}
+	Sleep(6000);
+	for (int i = 0; i < numofips; ++i)
+	{
+		Sleep(1000);
+		SearchComputers(Allips[i]);
+		Sleep(2000);
+	}
+	return 0;
+}
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 {
 	WhiteBrush = CreateSolidBrush(COLOR_WHITE);
@@ -1532,7 +1676,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 	Main.InitClass(hInst);//初始化主类
 	if (!MyRegisterClass(hInst, WndProc, szWindowClass))return FALSE;//初始化Class
 	Main.Obredraw = true;//默认使用ObjectRedraw
-	Main.CreateString(L"极域远程工具 v1.0", L"Title");
+	Main.CreateString(L"极域远程工具 v1.1", L"Title");
 	Main.CreateString(L".", L".");
 	Main.CreateString(L"From", L"fr");
 	Main.CreateString(L"To", L"to");
@@ -1541,8 +1685,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 	Main.CreateString(L"不确定版本时两个都选上即可。", L"t3");
 	Main.CreateString(L"本程序仅供学习、交流使用，", L"t4");
 	Main.CreateString(L"请勿使用本程序干扰课堂纪律。", L"t5");
+	Main.CreateString(L"局域网计算机列表(测试)", L"tr");
 	Main.hWnd = CreateWindowW(szWindowClass, Main.GetStr(L"Title"), WS_POPUP, \
 		CW_USEDEFAULT, CW_USEDEFAULT, 1, 1, NULL, nullptr, hInstance, nullptr);//创建主窗口
+
 	if (!Main.hWnd)return FALSE;
 	Main.ButtonEffect = TRUE;
 	SetTimer(Main.hWnd, 1, 33, (TIMERPROC)TimerProc);
@@ -1574,32 +1720,32 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 	Main.CreateEditEx(165 + 5, 214, 130 - 10, 40, 1, L"在此输入程序名", L"cmd", 0, false);
 	Main.CreateEditEx(165 + 5, 274, 130 - 10, 40, 1, L"在此输入网页名", L"net", 0, false);
 	Main.CreateEditEx(165 + 5, 334, 130 - 10, 40, 1, L"在此输入消息", L"net", 0, false);
-	wchar_t temp[39], * p = temp, * p2 = temp;
+
 	CheckIP();
-	charTowchar(ip, temp, sizeof(ip));
-	p = wcsstr(p2, L".");
-	*p = 0;
-	Main.CreateEditEx(370 + 5, 110, 35 - 10, 30, 1, p2, L"IP1", 0, true);
-	p2 = p + 1;
-	p = wcsstr(p2, L".");
-	*p = 0;
-	Main.CreateEditEx(420 + 5, 110, 35 - 10, 30, 1, p2, L"IP2", 0, true);
-	p2 = p + 1;
-	p = wcsstr(p2, L".");
-	*p = 0;
-	Main.CreateEditEx(470 + 5, 110, 35 - 10, 30, 1, p2, L"IP3", 0, true);
-	Main.CreateEditEx(520 + 5, 110, 35 - 10, 30, 1, p + 1, L"IP4", 0, true);
-	//s(Main.CurEdit);
-	Main.CreateEditEx(520 + 5, 168, 35 - 10, 30, 1, p + 1, L"IP5", 0, true);
-	Main.CreateLine(0, 471, 600, 471, 0, COLOR_DARKER_GREY);
+
+	Main.CreateEditEx(370 + 5, 110, 35 - 10, 30, 1, L"192", L"IP1", 0, true);//4
+	Main.CreateEditEx(420 + 5, 110, 35 - 10, 30, 1, L"168", L"IP2", 0, true);//5
+	Main.CreateEditEx(470 + 5, 110, 35 - 10, 30, 1, L"1", L"IP3", 0, true);//6
+	Main.CreateEditEx(520 + 5, 110, 35 - 10, 30, 1, L"1", L"IP4", 0, true);
+	Main.CreateEditEx(520 + 5, 168, 35 - 10, 30, 1, L"255", L"IP5", 0, true);
+	RefreshIP(ip);
+	CreateThread(0, 0, SearchAll, 0, 0, NULL);
+	Main.CreateLine(0, 471, 850, 471, 0, COLOR_DARKER_GREY);
 	Main.CreateLine(599, 50, 599, 471, 0, COLOR_DARKER_GREY);
-	Main.CreateButtonEx(++Main.CurButton, 520, 10, 60, 30, 0, L"×", \
+	Main.CreateLine(849, 50, 849, 471, 0, COLOR_DARKER_GREY);
+	Main.CreateButtonEx(++Main.CurButton, 765, 10, 60, 30, 0, L"×", \
 		CreateSolidBrush(COLOR_CLOSE_LEAVE), CreateSolidBrush(COLOR_CLOSE_HOVER), CreateSolidBrush(COLOR_CLOSE_PRESS), \
 		CreatePen(PS_SOLID, 1, COLOR_CLOSE_LEAVE), CreatePen(PS_SOLID, 1, COLOR_CLOSE_HOVER), CreatePen(PS_SOLID, 1, COLOR_CLOSE_PRESS), \
 		Main.DefFont, 1, COLOR_WHITE, L"Close");
 	Main.CreateButton(165, 92, 130, 45, 0, L"远程极域窗口化", L"rwindow");
-	SetWindowPos(Main.hWnd, 0, 0, 0, (int)(600 * Main.DPI), (int)(472 * Main.DPI), SWP_NOMOVE);
-	Main.Width = 600; Main.Height = 472;
+	Main.CreateButton(370, 155, 100, 45, 0, L"切换网卡", L"rip");
+	Main.CreateButton(800, 55, 30, 30, 0, L"...", L"ri");
+	Main.CreateText(620, 60, 0, L"tr", COLOR_BLACK);
+	List = CreateWindowW(L"ListBox", NULL, WS_CHILD | LBS_STANDARD, (int)(620 * Main.DPI), (int)(90 * Main.DPI), (int)(210 * Main.DPI), (int)(370 * Main.DPI), Main.hWnd, (HMENU)1, Main.hInstance, 0);
+	::SendMessage(List, WM_SETFONT, (WPARAM)Main.DefFont, 1);
+	ShowWindow(List, SW_SHOW);
+	SetWindowPos(Main.hWnd, 0, 200, 200, (int)(850 * Main.DPI), (int)(472 * Main.DPI), NULL);
+	Main.Width = 850; Main.Height = 472;
 
 	typedef DWORD(CALLBACK* SEtProcessDPIAware)(void);
 	SEtProcessDPIAware SetProcessDPIAware;
@@ -1670,8 +1816,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		PostQuitMessage(0);
 		break;
 	case WM_CHAR://给Edit转发消息
-		Main.EditCHAR((wchar_t)wParam); ;
-		break;
+	{Main.EditCHAR((wchar_t)wParam); break; }
 	case	WM_CREATE://创建窗口
 		rdc = GetDC(Main.hWnd);//创建bitmap
 		hdc = CreateCompatibleDC(rdc);
@@ -1680,7 +1825,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		ReleaseDC(Main.hWnd, rdc);
 		break;
 	case WM_HOTKEY:Main.EditHotKey((int)wParam); break;
+	case WM_COMMAND://当控件接收到消息时会触发这个
+	{
 
+		switch (LOWORD(wParam))//TDT中只用了List一个控件，所以下面的内容肯定是文件选择框了= =
+		{
+		case 1:
+			switch (HIWORD(wParam))
+			{
+			case LBN_SELCHANGE:
+				wchar_t ip3[MAX_PATH];
+				char ip4[300];
+				SendMessage(List, LB_GETTEXT, ::SendMessage(List, LB_GETCURSEL, 0, 0), (LPARAM)ip3);
+				*wcsstr(ip3, L"|") = 0;
+				WideCharToMultiByte(CP_ACP, 0, ip3, -1, ip4, 300, NULL, NULL);
+				//s(ip4);
+				RefreshIP(ip4);
+				Main.Redraw();
+				ShowWindow(List, SW_HIDE);
+				ShowWindow(List, SW_SHOW);
+				break;
+			}break;
+		}
+		break;
+	}
 	case WM_PAINT://绘图
 	{
 		RECT rc; bool f = false; HICON hicon;
@@ -1793,11 +1961,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 			if (Main.Check[1].Value)act2016(3);
 			if (Main.Check[2].Value)act2010(3);
 			break;
-		case 7:
+		case 7://x
 			PostQuitMessage(0);
 			break;
-		case 8:if (Main.Check[1].Value)act2016(4);
+		case 8:if (Main.Check[1].Value)act2016(4);//remote windowing
 			break;
+		case 9:
+		{
+			if (++curips >= numofips)curips = 0;
+			RefreshIP(Allips[curips]);
+			SearchComputers(Allips[curips]);
+			Main.Redraw();
+			break;
+		}
+		case 10:
+		{CreateThread(0, 0, SearchAll, 0, 0, NULL);
+		break;
+		}
 		}
 
 		if (Main.CoverCheck != 0)
