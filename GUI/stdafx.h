@@ -24,3 +24,4 @@
 #include <WinBase.h>
 #include <stack>
 #include <Shlobj.h>
+#include <commdlg.h>//包括"选择文件"对话框的头文件

