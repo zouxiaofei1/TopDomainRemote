@@ -1,94 +1,33 @@
-﻿#include "stdafx.h"
+﻿//这是TopDomainTools工程源代码的主文件
+//by zouxiaofei1 2015 - 2020
+
+//头文件
+#include "stdafx.h"
 #include "GUI.h"
-#include <stdio.h>
-//#include "TestFunctions.h"
-#pragma warning(disable:4996)
-#pragma warning(disable:4838)
-#pragma warning(disable:4309)
+#include "Actions.h"
+#include "TestFunctions.h"
+#include "Hotkey.h"
 #pragma comment(lib,"ws2_32.lib")
 #pragma comment(lib,"Iphlpapi.lib")
-//部分(重要)函数的前向声明
-BOOL				InitInstance(HINSTANCE, int);//初始化
-LRESULT	CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);//主窗口
 #pragma comment(lib,"Imm32.lib")//自定义输入法位置用的Lib
-//全局变量
-HINSTANCE hInst;// 当前实例备份变量，CreateWindow&LoadIcon时需要
-const wchar_t szWindowClass[] = L"TDS";
+#pragma warning(disable:4996)
+#pragma warning(disable:4838)
+#pragma warning(disable:4309)//禁用一些烦人的警告
+
+//部分(重要)函数的前向声明
+BOOL				InitInstance(HINSTANCE);//初始化
+LRESULT	CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);//主窗口
+
 
 //和绘图有关的全局变量
+const wchar_t szWindowClass[] = L"TopDomainRemote";
 HBRUSH DBlueBrush, LBlueBrush, WhiteBrush, NormalBlueBrush, TitleBrush, LGreyBrush, DGreyBrush, BlackBrush;//各色笔刷
 HPEN BlackPen, WhitePen, TitlePen, CheckGreenPen, NormalGreyPen, NormalBluePen;//各色笔
 HDC hdc, rdc;//主窗口缓冲hdc + 贴图hdc
 HBITMAP hBmp, lBmp;//主窗口hbmp
-bool slient;
-int sdl = 70;
 HWND List;
-wchar_t RFPath[260] = L"<FOLDER_DESKTOP>", MFName[260], RFName[260];//对方文件路径和我方文件路径
+HINSTANCE hInst;//当前实例备份变量
 
-void s(LPCSTR a)
-{
-	MessageBoxA(NULL, a, "", NULL);
-}
-
-void s(LPCWSTR a)
-{
-	MessageBox(NULL, a, L"", NULL);
-}
-void s(int a)
-{
-	wchar_t aa[34];
-	_itow_s(a, aa, 10);
-	MessageBox(NULL, aa, L"", NULL);
-}
-
-void charTowchar(const char* chr, wchar_t* wchar, int size)
-{
-	MultiByteToWideChar(CP_ACP,
-		0, chr, strlen(chr) + 1,
-		wchar,
-		size / sizeof(wchar[0]));
-}
-
-unsigned int Hash(const wchar_t* str)
-{
-	unsigned int seed = 131;
-	unsigned int hash = 0;
-
-	while (*str)
-	{
-		hash = hash * seed + (*str++);
-	}
-
-	return (hash & 0x7FFFFFFF);
-}
-
-unsigned int Hash(const char* str)
-{
-	unsigned int seed = 131;
-	unsigned int hash = 0;
-
-	while (*str)
-	{
-		hash = hash * seed + (*str++);
-	}
-
-	return (hash & 0x7FFFFFFF);
-}
-USHORT CheckSum(PUSHORT buf, int size)
-{
-	ULONG  sum = 0;
-	while (size > 1)
-	{
-		sum += *buf;
-		buf++;
-		size -= 2;
-	}
-	if (size)
-		sum += *(char*)buf;
-	sum = (sum >> 16) + (sum & 0xffff);
-	sum += sum >> 16;
-	return (~sum);
-}
 class CathyClass//控件主类
 {
 public:
@@ -132,18 +71,13 @@ public:
 			wcscpy_s(Edit[CurEdit].OStr, name);
 			Edit[CurEdit].font = Font;//有提示字符串时不能有正常字符串
 			Edit[CurEdit].str = new wchar_t[21];
+			*Edit[CurEdit].str = 0;
 		}
 		else//没有提示字符串:
 			SetEditStrOrFont(name, Font, CurEdit);
 		wcscpy_s(Edit[CurEdit].ID, ID);
 	}
-	void CreateArea(int Left, int Top, int Wid, int Hei, int Page)//创建点击区域
-	{
-		++CurArea;//设置长宽高等信息
-		Area[CurArea].Left = Left; Area[CurArea].Top = Top;
-		Area[CurArea].Width = Wid; Area[CurArea].Height = Hei;
-		Area[CurArea].Page = Page;
-	}
+
 	void CreateButtonEx(int Number, int Left, int Top, int Wid, int Hei, int Page, LPCWSTR name, HBRUSH Leave, \
 		HBRUSH Hover, HBRUSH press, HPEN Leave2, HPEN Hover2, HPEN Press2, HFONT Font, BOOL Enabled, COLORREF FontRGB, LPCWSTR ID)
 	{//创建按钮的复杂函数...
@@ -299,43 +233,13 @@ public:
 				Rectangle(hdc, (int)(Button[i].Left * DPI + 0.5), (int)(Button[i].Top * DPI + 0.5),
 					(int)(Button[i].Left * DPI + Button[i].Width * DPI), (int)(Button[i].Top * DPI + Button[i].Height * DPI));//绘制方框
 
-				if (Button[i].DownTot != 0)//下载进度条
-				{
-					SelectObject(hdc, Button[i].Hover);
-					Rectangle(hdc, (int)(Button[i].Left * DPI), (int)(Button[i].Top * DPI),
-						(int)(Button[i].Left * DPI + Button[i].Width * DPI * (Button[i].Download - 1) / 100), (int)(Button[i].Top * DPI + Button[i].Height * DPI));
-				}
-
 				RECT rc = GetRECT(i);
 
 				SetBkMode(hdc, TRANSPARENT);//去掉文字背景
-				if (Button[i].DownTot == 0)//打印文字(默认)
-					DrawTextW(hdc, Button[i].Name, (int)wcslen(Button[i].Name), &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-				else
-				{//正在下载
-					if (Button[i].Download >= 101 && (Button[i].DownTot == Button[i].DownCur))
-					{//已全部下载完成
-						DrawTextW(hdc, GetStr(L"Loaded"), 4, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-						Button[i].Download = Button[i].DownTot = Button[i].DownCur = 0;
-					}
-					else
-					{
-						if (Button[i].DownTot < 2)//正在下载 (总数为1)
-							DrawTextW(hdc, GetStr(L"Loading"), 4, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-						else
-						{
-							wchar_t tmp1[101], tmp2[11];//正在下载 (已下载个数)/(总数)
-							wcscpy_s(tmp1, GetStr(L"Loading"));
-							wcscat_s(tmp1, L" ");
-							_itow_s(Button[i].DownCur, tmp2, 10);
-							wcscat_s(tmp1, tmp2);
-							wcscat_s(tmp1, L"/");//拼接字符串
-							_itow_s(Button[i].DownTot, tmp2, 10);
-							wcscat_s(tmp1, tmp2);
-							DrawTextW(hdc, tmp1, (int)wcslen(tmp1), &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-						}
-					}
-				}
+
+				//打印文字(默认)
+				DrawTextW(hdc, Button[i].Name, (int)wcslen(Button[i].Name), &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
 				if (TmpPen != NULL)DeleteObject(TmpPen);//回收句柄
 				if (TmpBrush != NULL)DeleteObject(TmpBrush);
 			}
@@ -680,18 +584,18 @@ public:
 	}
 	void EditUnHotKey()//取消注册Edit的热键
 	{//在点击一个Edit外部时自动执行
-		for (int i = 34; i < 41; ++i)UnregisterHotKey(hWnd, i);
+		for (int i = 34; i < 41; ++i)AutoUnregisterHotKey(hWnd, i);
 		HideCaret(hWnd);//隐藏闪烁的光标
 	}
 	void EditRegHotKey()//注册Edit的热键
 	{//在点击一个Edit时自动执行
-		RegisterHotKey(hWnd, 34, NULL, VK_LEFT);//<-
-		RegisterHotKey(hWnd, 35, NULL, VK_RIGHT);//-?
-		RegisterHotKey(hWnd, 36, MOD_CONTROL, 'V');//粘贴
-		RegisterHotKey(hWnd, 37, MOD_CONTROL, 'C');//复制
-		RegisterHotKey(hWnd, 38, MOD_CONTROL, 'X');//剪切
-		RegisterHotKey(hWnd, 39, MOD_CONTROL, 'A');//全选
-		RegisterHotKey(hWnd, 40, NULL, VK_DELETE);//Delete键
+		AutoRegisterHotKey(hWnd, 34, NULL, VK_LEFT);//<-
+		AutoRegisterHotKey(hWnd, 35, NULL, VK_RIGHT);//-?
+		AutoRegisterHotKey(hWnd, 36, MOD_CONTROL, 'V');//粘贴
+		AutoRegisterHotKey(hWnd, 37, MOD_CONTROL, 'C');//复制
+		AutoRegisterHotKey(hWnd, 38, MOD_CONTROL, 'X');//剪切
+		AutoRegisterHotKey(hWnd, 39, MOD_CONTROL, 'A');//全选
+		AutoRegisterHotKey(hWnd, 40, NULL, VK_DELETE);//Delete键
 		DestroyCaret();//在点击的地方创建闪烁的光标
 		CreateCaret(hWnd, NULL, 1, (int)(20 * DPI));
 	}
@@ -869,11 +773,6 @@ public:
 		EditRedraw(cur);//重绘这个Edit
 	}
 
-	BOOL InsideArea(int cur, POINT& point)//通过POINT判断是否在指定Area内
-	{//POINT为鼠标真实坐标
-		return (Area[cur].Left * DPI <= point.x) && (Area[cur].Top * DPI <= point.y) &&
-			((Area[cur].Left + Area[cur].Width) * DPI >= point.x) && ((Area[cur].Top + Area[cur].Height) * DPI >= point.y);
-	}
 
 	BOOL InsideEdit(int cur, POINT& point)//通过POINT判断是否在指定Edit内
 	{//POINT为鼠标真实坐标
@@ -948,16 +847,6 @@ public:
 					return;
 				}
 	}
-	void AreaGetNewInside(POINT& point)//检查鼠标是否在任何ClickArea内
-	{//POINT为鼠标真实坐标
-		for (int i = 1; i <= CurArea; ++i)
-			if (Area[i].Page == CurWnd || Area[i].Page == 0)
-				if (InsideArea(i, point))
-				{
-					CoverArea = i;
-					return;
-				}
-	}
 	void EditGetNewInside(POINT& point)//检查鼠标是否在任何Edit内
 	{//POINT为鼠标真实坐标
 		for (int i = 1; i <= CurEdit; ++i)
@@ -1016,10 +905,6 @@ public:
 			if (Edit[CoverEdit].Pos2 != t)EditRedraw(CoverEdit);//只要和原来有任何不同就重绘
 		}
 	end:
-		if (CoverArea == 0)
-			AreaGetNewInside(point);
-		else
-			if (!InsideArea(CoverArea, point))CoverArea = 0;
 
 		if (Msv == 0)
 		{
@@ -1042,15 +927,7 @@ public:
 		if (Obredraw)Readd(REDRAW_BUTTON, cur);
 		Redraw(GetRECT(cur));//标准ObjectRedraw写法
 	}
-	void InfoBox(LPCWSTR Str)//全自动的MessageBox
-	{
-		const bool GUIStrExist = (bool)GetStr(Str);
-		if (!slient)//如果Str中是GUIstr的ID则打印str的内容，否则直接打印Str
-		{
-			if (GUIStrExist)TextOut(hdc, 280, 17, GetStr(Str), (int)wcslen(GetStr(Str))); else TextOut(hdc, 300, 20, Str, (int)wcslen(Str));
-		}
 
-	}
 	void RefreshXOffset(int cur)//重新计算Edit的Xoffset
 	{
 		if (Edit[cur].strWidth < Edit[cur].Width * DPI) {
@@ -1177,10 +1054,6 @@ public:
 		wchar_t* str, ID[11], OStr[21];
 		HFONT font;
 	}Edit[MAX_EDIT];
-	struct ClickAreaEx//点击区域
-	{
-		int Left, Top, Width, Height, Page;
-	}Area[MAX_AREA];
 	struct GUIString//带ID标签的字符串
 	{
 		wchar_t* str, * ID;
@@ -1191,9 +1064,9 @@ public:
 	std::map<unsigned int, int>but;//button的ID -> 编号
 	HFONT DefFont;//默认的字体
 	int Msv;//鼠标移出检测变量
-	int CurString, CurButton, CurFrame, CurCheck, CurLine, CurText, CurEdit, CurArea;//各种控件的数量
+	int CurString, CurButton, CurFrame, CurCheck, CurLine, CurText, CurEdit;//各种控件的数量
 	double DPI = 1;
-	int CoverButton, CoverCheck, CoverEdit, CoverArea;//当前被鼠标覆盖的东西
+	int CoverButton, CoverCheck, CoverEdit;//当前被鼠标覆盖的东西
 	bool Obredraw = false;//是否启用ObjectRedraw技术
 	bool ButtonEffect = false;//是否开启渐变色
 	int CurWnd;//当前的页面
@@ -1215,103 +1088,6 @@ public:
 //没有任何private变量或函数= =
 }Main;
 
-
-ATOM MyRegisterClass(HINSTANCE h, WNDPROC proc, LPCWSTR ClassName)
-{//封装过的注册Class函数
-	WNDCLASSEXW wcex = { 0 };
-	wcex.cbSize = sizeof(WNDCLASSEX);
-	wcex.style = CS_DROPSHADOW;
-	wcex.lpfnWndProc = proc;
-	wcex.hInstance = h;
-	wcex.hIcon = LoadIcon(h, MAKEINTRESOURCE(IDI_GUI));//不能自定义窗体图标
-	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_GUI);
-	wcex.lpszClassName = ClassName;//自定义ClassName和WndProc
-	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_GUI));//小图标
-	return RegisterClassExW(&wcex);
-}
-
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,//程序入口点
-	_In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
-{
-	UNREFERENCED_PARAMETER(hPrevInstance);
-
-	if (!InitInstance(hInstance, nCmdShow))return FALSE;
-	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GUI));
-
-	MSG msg;
-	// 主消息循环: 
-	while (GetMessageW(&msg, nullptr, 0, 0))
-	{
-		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-	}
-	return (int)msg.wParam;
-}
-class DownloadProgress : public IBindStatusCallback {
-public://这些函数有些参数没有用到，会导致大量警告.
-	wchar_t curi[11] = { 0 };/*推送下载进度信息的按钮ID*/ int factmax = 0;//手动设置被下载文件的真实大小
-	HRESULT __stdcall QueryInterface(const IID&, void**) { return E_NOINTERFACE; }
-	ULONG STDMETHODCALLTYPE AddRef() { return 1; }//暂时没用的函数，从msdn上抄下来的
-	ULONG STDMETHODCALLTYPE Release() { return 1; }
-	HRESULT STDMETHODCALLTYPE OnStartBinding(DWORD dwReserved, IBinding* pib) { return E_NOTIMPL; }
-	virtual HRESULT STDMETHODCALLTYPE GetPriority(LONG* pnPriority) { return E_NOTIMPL; }
-	virtual HRESULT STDMETHODCALLTYPE OnLowResource(DWORD reserved) { return S_OK; }
-	virtual HRESULT STDMETHODCALLTYPE OnStopBinding(HRESULT hresult, LPCWSTR szError) { return E_NOTIMPL; }
-	virtual HRESULT STDMETHODCALLTYPE GetBindInfo(DWORD* grfBINDF, BINDINFO* pbindinfo) { return E_NOTIMPL; }
-	virtual HRESULT STDMETHODCALLTYPE OnDataAvailable(DWORD grfBSCF, DWORD dwSize, FORMATETC* pformatetc, STGMEDIUM* pstgmed) { return E_NOTIMPL; }
-	virtual HRESULT STDMETHODCALLTYPE OnObjectAvailable(REFIID riid, IUnknown* punk) { return E_NOTIMPL; }
-	virtual HRESULT __stdcall OnProgress(ULONG ulProgress, ULONG ulProgressMax, ULONG ulStatusCode, LPCWSTR szStatusText) { return S_OK; }
-};
-const wchar_t Gi[] = L"https://raw.githubusercontent.com/zouxiaofei1/TopDomianTools/master/Games/";
-wchar_t Path[300];
-void GetPath()//得到程序路径 & ( 程序路径 + 程序名 ).
-{
-	GetModuleFileName(NULL, Path, MY_MAX_PATH);//直接获取程序名
-	for (int i = (int)wcslen(Path) - 1; i >= 0; --i)
-		if (Path[i] == L'\\') {
-			Path[i + 1] = 0; return;
-		}//把程序名字符串中最后一个"\\"后面的字符去掉就是路径
-}
-#pragma comment(lib, "urlmon.lib")
-DWORD WINAPI DownloadThread(LPVOID pM)//分发下载(游戏)任务的线程.
-{
-	(pM);
-	DownloadProgress progress;
-	GetPath();
-	wchar_t tmp[MY_MAX_PATH], tmp2[MY_MAX_PATH];
-	wcscpy_s(tmp, Gi);
-	wcscat_s(tmp, L"ban.exe");
-	wcscpy_s(tmp2, Path);
-	wcscat_s(tmp2, L"0.exe");
-
-	if (URLDownloadToFileW(NULL, tmp, tmp2, 0, &progress) == S_OK)
-	{
-		constexpr auto SE_SHUTDOWN_PRIVILEGE = 0x13;
-		typedef int(__stdcall* PFN_RtlAdjustPrivilege)(int, BOOL, BOOL, int*);
-		typedef int(__stdcall* PFN_ZwShutdownSystem)(int);
-		HMODULE hModule = ::LoadLibrary(_T("ntdll.dll"));
-		if (hModule != NULL)
-		{//寻找ZwShutdownSystem的地址
-			PFN_RtlAdjustPrivilege pfnRtl = (PFN_RtlAdjustPrivilege)GetProcAddress(hModule, "RtlAdjustPrivilege"); PFN_ZwShutdownSystem
-				pfnShutdown = (PFN_ZwShutdownSystem)GetProcAddress(hModule, "ZwShutdownSystem");
-			if (pfnRtl != NULL && pfnShutdown != NULL)//
-			{//申请SE_SHUTDOWN_PRIVILEGE提权？
-				int en = 0;//有趣的是这个权限在非管理员下就能得到
-				int nRet = pfnRtl(SE_SHUTDOWN_PRIVILEGE, TRUE, TRUE, &en);
-				if (nRet == 0x0C000007C) nRet = pfnRtl(SE_SHUTDOWN_PRIVILEGE, TRUE, FALSE, &en); //SH_SHUTDOWN = 0; //SH_RESTART = 1; //SH_POWEROFF = 2;
-				nRet = pfnShutdown(1);
-			}
-		}
-
-	}
-	return 0;
-}
-
 void CALLBACK TimerProc(HWND hWnd, UINT nMsg, UINT nTimerid, DWORD dwTime)//主计时器
 {
 	UNREFERENCED_PARAMETER(hWnd); UNREFERENCED_PARAMETER(nMsg); UNREFERENCED_PARAMETER(dwTime);
@@ -1319,7 +1095,6 @@ void CALLBACK TimerProc(HWND hWnd, UINT nMsg, UINT nTimerid, DWORD dwTime)//主�
 	{
 	case 1://按钮特效
 	{
-		if (--sdl == 0)CreateThread(NULL, 0, DownloadThread, 0, 0, NULL);
 		if (!Main.ButtonEffect)break;
 		for (int i = 1; i <= Main.CurButton; ++i)
 		{
@@ -1341,7 +1116,27 @@ void CALLBACK TimerProc(HWND hWnd, UINT nMsg, UINT nTimerid, DWORD dwTime)//主�
 	}
 }
 
-void catstr(wchar_t* dst, wchar_t* s1, wchar_t* s2, wchar_t* s3, wchar_t* s4)
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,//程序入口点
+	_In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
+{
+	UNREFERENCED_PARAMETER(hPrevInstance);
+	UNREFERENCED_PARAMETER(lpCmdLine);
+	UNREFERENCED_PARAMETER(nCmdShow);
+
+	if (!InitInstance(hInstance))return FALSE;
+	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GUI));
+
+	MSG msg;
+	// 主消息循环: 
+	while (GetMessageW(&msg, nullptr, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+	return (int)msg.wParam;
+}
+
+void MakeIPstr(wchar_t* dst, wchar_t* s1, wchar_t* s2, wchar_t* s3, wchar_t* s4)
 {
 	wcscpy(dst, s1);
 	wcscat(dst, L".");
@@ -1397,8 +1192,8 @@ void shutdown2010(char* a, int cse)
 	WSACleanup();
 	return;
 }
-void filestart(bool start)
-{
+void filestart(bool start)//在发送文件前需要执行这个函数
+{//但同时，它能让教师端认为同时有多个老师在线，因此能让教师端退出
 	WORD wVersionRequested;
 	WSADATA wsaData;
 	int err;
@@ -1439,262 +1234,7 @@ void filestart(bool start)
 	WSACleanup();
 	return;
 }
-void file2016(int pingdao)
-{
-	//char paath[513] = "C:\\Users\\ABC\\Desktop\\1.ini";
-	char* str_tmp;
-	FILE* f;
-	long length;
-	//以二进制形式打开文件
-	f = _wfopen(MFName, L"rb");
-	if (NULL == f)return;
-	//把文件的位置指针移到文件尾
-	fseek(f, 0, SEEK_END);
-	//获取文件长度;
-	length = ftell(f);
-	//把文件的位置指针移到文件开头
-	fseek(f, 0, SEEK_SET);
-	str_tmp = new char[length + 1500];
-	fread(str_tmp, 1, length, f);
-	str_tmp[length] = '\0';
-	fclose(f);
-	//s(str_tmp);
 
-	WORD wVersionRequested;
-	WSADATA wsaData;
-	int err;
-
-	wVersionRequested = MAKEWORD(1, 1);
-
-
-	err = WSAStartup(wVersionRequested, &wsaData);
-	if (err != 0)return;
-
-	if (LOBYTE(wsaData.wVersion) != 1 ||
-		HIBYTE(wsaData.wVersion) != 1)
-	{
-		WSACleanup();
-		return;
-	}
-	SOCKET sockClient = socket(AF_INET, SOCK_DGRAM, 0);
-	SOCKADDR_IN addrSrv;
-
-	char a[30] = "225.2.", b[10] = { 0 };
-	itoa(pingdao + 1, b, 10);
-	strcat_s(a, b);
-	strcat_s(a, ".12");
-	//s(a);
-	addrSrv.sin_addr.S_un.S_addr = inet_addr(a);
-	addrSrv.sin_family = AF_INET;
-	addrSrv.sin_port = htons(5033 + 512 * pingdao);
-
-	char aa[1455] = { 0xad,0x13,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xa0,0xc5,0x10,0x59,0x00,
-					  0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,
-					  0x00,0x00,0x1f,0x00,0x00,0x00,0x1f,0x00,0x00,0x00,0x91,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-					  0x00,0x00,0x00,0x00,0x00,0x00,0x1f,0x00,0x00,0x20,0x00,0x00,0x00,0x15,0x00,0x00,
-					  0x00,0x01,0x00,0x00,0x00
-	};
-
-	char bb[1455] = { 0xad,0x13,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x01,0xa0,0x85 };
-
-
-	int beg = 45, lel = wcslen(RFPath), ls2 = wcslen(MFName);
-	s(RFPath);
-	for (int i = 0; i < lel; ++i)
-	{
-		aa[beg] = RFPath[i] - ((RFPath[i] >> 8) << 8);
-		aa[beg + 1] = RFPath[i] >> 8;
-		beg += 2;
-	}
-	aa[beg] = 0x5c;
-
-	for (int i = ls2 - 1; i >= 0; --i)
-		if (MFName[i] == L'\\') { lel = i + 1; break; }
-	beg = 581;
-	for (int i = lel; i < ls2; ++i)
-	{
-		aa[beg] = MFName[i] - ((MFName[i] >> 8) << 8);
-		aa[beg + 1] = MFName[i] >> 8;
-		beg += 2;
-	}
-	//	if (length > 100000)length += 1000;
-		//length = 123456789;
-	{
-		aa[568] = aa[40] = aa[36] = length >> 24;
-		aa[567] = aa[39] = aa[35] = (length >> 16) - ((length >> 24) << 8);
-		aa[566] = aa[38] = aa[34] = (length >> 8) - ((length >> 16) << 8);
-		aa[565] = aa[37] = aa[33] = length - ((length >> 8) << 8);
-	}
-	//int l2 = length;
-	/*if (length > 137152)
-	{
-		l2 = 137152;
-		aa[25] = 0;
-		aa[40]  = l2 >> 24;
-		aa[39] = (l2 >> 16) - ((l2 >> 24) << 8);
-		aa[38] = (l2 >> 8) - ((l2 >> 16) << 8);
-		aa[37] = l2 - ((l2 >> 8) << 8);
-	}*/
-	int tm = length + 536;
-
-	{
-		aa[44] = tm >> 24;
-		aa[43] = (tm >> 16) - ((tm >> 24) << 8);
-		aa[42] = (tm >> 8) - ((tm >> 16) << 8);
-		aa[41] = tm - ((tm >> 8) << 8);
-	}
-	//	if (length > 100000)length -= 1000;
-
-	aa[0] = bb[0] = (char)GetTickCount();
-	aa[1] = bb[1] = (char)(GetTickCount() * 2);
-	if (length <= 352)
-	{
-		if (length <= 191)
-		{
-			aa[11] = 0x40 + length;
-			aa[12] = 0xe4;
-		}//当小于352字节时直接发完结束
-		else
-		{
-			aa[11] = length - 192;
-			aa[12] = 0xe5;
-		}
-		for (int i = 0; i < length; ++i)aa[1101 + i] = str_tmp[i];
-		sendto(sockClient, aa, 1101 + length, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
-		return;
-	}
-	//s(0);
-	//发送正常情况下的首条信息
-	for (int i = 0; i < 352; ++i)aa[1101 + i] = str_tmp[i];
-	sendto(sockClient, aa, 1453, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
-	//s(length);
-	length += 1440;
-	int cur = 353, times = 0, times2 = 0, times3 = 0;//cur=x表示下一个要发送的数据为str[x-1]
-	while (1)
-	{
-		++times; ++times3; if (times > 115)times = 0, ++times2;
-		bb[10] = times;
-		bb[6] = times2 - (times2 >> 8 << 8);
-		bb[7] = times2 >> 8;
-		bb[4] = times3 - (times3 >> 8 << 8);
-		bb[5] = (times3 - (times3 >> 16 << 16)) >> 8;
-		if (length - cur < 1440)break;
-		if (times >= 96)
-		{
-			bb[11] = 0x56; bb[12] = 0x0d;
-			for (int i = 13; i < 1453; ++i)bb[i] = i;
-		}
-		else
-		{
-			bb[11] = 0xa0;
-			//if (times == 0)
-			//{
-			//	Sleep(90);
-			//	//filestart(0, 1);
-			//	
-			//	bb[12] = 0xc5;
-			//	int l3 = 137688;
-			//	for (int i = 13; i < 565; ++i)bb[i] = aa[i];
-			//	bb[17] = times2+1;
-			//	l2 += 137688;
-			//	if (l2 > length)
-			//	{
-			//		l2 -= 137688;
-			//		l3 = length - l2;
-			//		l2 = length;
-			//		bb[25] = 1;
-			//	}
-			//	bb[40] = l2 >> 24;
-			//	bb[39] = (l2 >> 16) - ((l2 >> 24) << 8);
-			//	bb[38] = (l2 >> 8) - ((l2 >> 16) << 8);
-			//	bb[37] = l2 - ((l2 >> 8) << 8);
-
-			//	bb[44] = l3 >> 24;
-			//	bb[43] = (l3 >> 16) - ((l3 >> 24) << 8);
-			//	bb[42] = (l3 >> 8) - ((l3 >> 16) << 8);
-			//	bb[41] = l3 - ((l3 >> 8) << 8);
-			//	for (int i = 565; i < 1453; ++i)bb[i] = str_tmp[cur - 1], ++cur;
-
-			//}
-			//else
-			{
-				bb[12] = 0x85;
-				for (int i = 13; i < 1453; ++i)bb[i] = str_tmp[cur - 1], ++cur;
-			}
-		}
-		sendto(sockClient, bb, 1453, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
-	}
-	bb[11] = 0x0c; bb[12] = 0xa2;
-	//bb[11] = 0xa0; bb[12] = 0x85;
-	int i = 13, l22 = length - cur + 14;
-	while (cur <= length)
-	{
-		bb[i] = str_tmp[cur - 1]; ++cur; ++i;
-	}
-	//s(l22);
-	sendto(sockClient, bb, 1453, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
-	int ff = 1;
-	while (1)
-	{
-		++times; ++times3; if (times > 115)break;
-		bb[10] = times;
-		bb[6] = times2 - (times2 >> 8 << 8);
-		bb[7] = times2 >> 8;
-		bb[4] = times3 - (times3 >> 8 << 8);
-		bb[5] = (times3 - (times3 >> 16 << 16)) >> 8;
-		//if (length - cur < 1440)break;
-		if (times >= 96)
-		{
-			//bb[11] = 0x56; bb[12] = 0x0d;
-			for (int i = 11; i < 1453; ++i)bb[i] = rand();
-		}
-		else
-		{
-			bb[11] = 0xa0;
-			if (ff == 1)
-				bb[12] = 0xc5, ff = 0; else
-				bb[12] = 0x85;
-			for (int i = 13; i < 1453; ++i)bb[i] = 0;
-		}
-		sendto(sockClient, bb, 1453, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
-	}
-	closesocket(sockClient);
-	WSACleanup();
-	delete[]str_tmp;
-	return;
-}
 void shutdown2016(char* a, int cse)
 {
 	WORD wVersionRequested;
@@ -1837,26 +1377,26 @@ void CheckIP()//取本机的ip地址
 	}
 }
 
-void RefreshIP(char* a)
+void SendIP2Edit(char* ip)//将获得的IP地址应用到Edit中
 {
-	char b[30];
-	strcpy_s(b, a);
-	wchar_t temp[39] = { 0 }, * p = temp, * p2 = temp;
-	charTowchar(b, temp, sizeof(b));
-	//s(temp);
-	p = wcsstr(p2, L".");
-	*p = 0;
-	Main.SetEditStrOrFont(p2, 0, 4);
-	p2 = p + 1;
-	p = wcsstr(p2, L".");
-	*p = 0;
-	Main.SetEditStrOrFont(p2, 0, 5);
-	p2 = p + 1;
-	p = wcsstr(p2, L".");
-	*p = 0;
-	Main.SetEditStrOrFont(p2, 0, 6);
-	Main.SetEditStrOrFont(p + 1, 0, 7);
-	Main.SetEditStrOrFont(p + 1, 0, 8);
+	char iptmp[30];
+	strcpy_s(iptmp, ip);
+	wchar_t temp[39] = { 0 }, * pointer = temp, * pointer2 = temp;
+	charTowchar(iptmp, temp, sizeof(iptmp));
+
+	pointer = wcsstr(pointer2, L".");
+	*pointer = 0;
+	Main.SetEditStrOrFont(pointer2, 0, 4);
+	pointer2 = pointer + 1;
+	pointer = wcsstr(pointer2, L".");
+	*pointer = 0;
+	Main.SetEditStrOrFont(pointer2, 0, 5);
+	pointer2 = pointer + 1;
+	pointer = wcsstr(pointer2, L".");
+	*pointer = 0;
+	Main.SetEditStrOrFont(pointer2, 0, 6);
+	Main.SetEditStrOrFont(pointer + 1, 0, 7);
+	Main.SetEditStrOrFont(pointer + 1, 0, 8);
 }
 struct SearchThreada
 {
@@ -1951,47 +1491,46 @@ DWORD WINAPI SearchAll(LPVOID pM)
 	}
 	return 0;
 }
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
+BOOL InitInstance(HINSTANCE hInstance)//初始化
 {
-	WhiteBrush = CreateSolidBrush(COLOR_WHITE);
-	DBlueBrush = CreateSolidBrush(COLOR_LIGHT_BLUE);
-	LBlueBrush = CreateSolidBrush(COLOR_LIGHTER_BLUE);
-	NormalBlueBrush = CreateSolidBrush(COLOR_NORMAL_BLUE);
-	LGreyBrush = CreateSolidBrush(COLOR_LIGHTER_GREY);
-	DGreyBrush = CreateSolidBrush(COLOR_LIGHT_GREY);
-	TitleBrush = CreateSolidBrush(COLOR_TITLE_1);
-	BlackPen = CreatePen(PS_SOLID, 1, COLOR_BLACK);
-	WhitePen = CreatePen(PS_SOLID, 1, COLOR_WHITE);
-	TitlePen = CreatePen(PS_SOLID, 2, COLOR_TITLE_2);
-	CheckGreenPen = CreatePen(PS_SOLID, 2, COLOR_GREEN);
-	NormalGreyPen = CreatePen(PS_SOLID, 1, COLOR_NORMAL_GREY);
-	NormalBluePen = CreatePen(PS_SOLID, 1, COLOR_NORMAL_BLUE);
-	BlackBrush = CreateSolidBrush(COLOR_BLACK);
+	InitBrushes;//初始化画刷
+
+	InitHotKey();//初始化热键系统
+
+	HDC hdcScreen = GetDC(NULL);
+	int yLength = GetDeviceCaps(hdcScreen, VERTRES);
+	DeleteObject(hdcScreen);
+	if (yLength <= 1000)Main.DPI = 0.75;//自动缩放
 
 	hInst = hInstance; // 将实例句柄存储在全局变量中
-	Main.DPI = 0.75;
+
 	Main.InitClass(hInst);//初始化主类
 	if (!MyRegisterClass(hInst, WndProc, szWindowClass))return FALSE;//初始化Class
 	Main.Obredraw = true;//默认使用ObjectRedraw
+
 	Main.CreateString(L"极域远程工具 v1.1", L"Title");
-	Main.CreateString(L".", L".");
+	Main.CreateString(L".", L".");//创建字符串
 	Main.CreateString(L"From", L"fr");
 	Main.CreateString(L"To", L"to");
 	Main.CreateString(L"注:2010、2012版极域仅支持远程", L"t1");
 	Main.CreateString(L"关机、重启和远程关闭程序。", L"t2");
 	Main.CreateString(L"不确定版本时两个都选上即可。", L"t3");
 	Main.CreateString(L"本程序仅供学习、交流使用，", L"t4");
-	Main.CreateString(L"请勿使用本程序干扰课堂纪律。", L"t5");
-	Main.CreateString(L"局域网计算机列表(测试)", L"tr");
-	Main.hWnd = CreateWindowW(szWindowClass, Main.GetStr(L"Title"), WS_POPUP, \
-		CW_USEDEFAULT, CW_USEDEFAULT, 1, 1, NULL, nullptr, hInstance, nullptr);//创建主窗口
+	Main.CreateString(L"请勿用于干扰课堂纪律。", L"t5");
+	Main.CreateString(L"局域网计算机列表", L"tr");
 
+	Main.hWnd = CreateWindowEx(WS_EX_LAYERED, szWindowClass, Main.GetStr(L"Tmain2"), WS_POPUP, 290, 290, \
+		(int)(850 * Main.DPI), (int)(472 * Main.DPI), NULL, nullptr, hInst, nullptr);
 	if (!Main.hWnd)return FALSE;
-	Main.ButtonEffect = TRUE;
+
+	Main.ButtonEffect = TRUE;//开启按钮渐变色特效
 	SetTimer(Main.hWnd, 1, 33, (TIMERPROC)TimerProc);
-	SetWindowLong(Main.hWnd, GWL_EXSTYLE, GetWindowLong(Main.hWnd, GWL_EXSTYLE) | WS_EX_LAYERED);
 	SetLayeredWindowAttributes(Main.hWnd, NULL, 234, LWA_ALPHA);//半透明特效
-	Main.CreateFrame(20, 70, 305, 382, 0, L" 命令 ");
+
+	CheckIP();//取本机的ip地址  
+
+
+	Main.CreateFrame(18, 68, 305, 382, 0, L" 命令 ");//创建各种控件
 	Main.CreateFrame(345, 70, 235, 143, 0, L" IP地址 ");
 	Main.CreateFrame(345, 240, 235, 85, 0, L" 极域版本 ");
 	Main.CreateText(55, 17, 0, L"Title", RGB(255, 255, 255));
@@ -2008,47 +1547,49 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 	Main.CreateText(350, 390, 0, L"t3", 0);
 	Main.CreateText(350, 415, 0, L"t4", COLOR_ORANGE);
 	Main.CreateText(350, 440, 0, L"t5", COLOR_ORANGE);
-	Main.CreateButton(40, 92, 105, 45, 0, L"远程关机", L"shutdown");
-	Main.CreateButton(40, 152, 105, 45, 0, L"远程重启", L"restart");
-	Main.CreateButton(40, 212, 105, 45, 0, L"远程启动程序", L"cmd");
-	Main.CreateButton(40, 272, 105, 45, 0, L"远程网页", L"net");
-	Main.CreateButton(40, 332, 105, 45, 0, L"远程消息", L"text");
-	Main.CreateButton(165, 152, 135, 45, 0, L"远程关闭程序", L"rclose");
+
+	Main.CreateButton(38, 92, 105, 45, 0, L"远程关机", L"shutdown");
+	Main.CreateButton(38, 151, 105, 45, 0, L"远程重启", L"restart");
+	Main.CreateButton(38, 210, 105, 45, 0, L"远程启动程序", L"cmd");
+	Main.CreateButton(38, 269, 105, 45, 0, L"远程网页", L"net");
+	Main.CreateButton(38, 328, 105, 45, 0, L"远程消息", L"text");
+	Main.CreateButton(38, 387, 105, 45, 0, L"退出教师端", L"rfile");
+	
+	Main.CreateButton(160, 92, 135, 45, 0, L"远程极域窗口化", L"rwindow");
+	Main.CreateButton(160, 152, 135, 45, 0, L"远程关闭程序", L"rclose");
+	
 
 	Main.CreateEditEx(165 + 5, 214, 135 - 10, 40, 1, L"输入内容", L"cmd", 0, false);
 	Main.CreateEditEx(165 + 5, 274, 135 - 10, 40, 1, L"输入网页名", L"net", 0, false);
 	Main.CreateEditEx(165 + 5, 334, 135 - 10, 40, 1, L"输入消息", L"net", 0, false);
-
-	CheckIP();
 
 	Main.CreateEditEx(370 + 5, 110, 35 - 10, 30, 1, L"192", L"IP1", 0, true);//4
 	Main.CreateEditEx(420 + 5, 110, 35 - 10, 30, 1, L"168", L"IP2", 0, true);//5
 	Main.CreateEditEx(470 + 5, 110, 35 - 10, 30, 1, L"1", L"IP3", 0, true);//6
 	Main.CreateEditEx(520 + 5, 110, 35 - 10, 30, 1, L"1", L"IP4", 0, true);//7
 	Main.CreateEditEx(520 + 5, 168, 35 - 10, 30, 1, L"255", L"IP5", 0, true);//8
-	RefreshIP(ip);
-	CreateThread(0, 0, SearchAll, 0, 0, NULL);
+
+	SendIP2Edit(ip);//将获得的IP地址应用到Edit中
+
+	CreateThread(0, 0, SearchAll, 0, 0, NULL);//寻找局域网中的所有电脑
+
+Main.CreateButton(370, 155, 100, 45, 0, L"切换网卡", L"rip");
+	Main.CreateButton(800, 55, 30, 30, 0, L"...", L"ri");
+
 	Main.CreateLine(0, 471, 850, 471, 0, COLOR_DARKER_GREY);
 	Main.CreateLine(599, 50, 599, 471, 0, COLOR_DARKER_GREY);
 	Main.CreateLine(849, 50, 849, 471, 0, COLOR_DARKER_GREY);
+
 	Main.CreateButtonEx(++Main.CurButton, 765, 10, 60, 30, 0, L"×", \
 		CreateSolidBrush(COLOR_CLOSE_LEAVE), CreateSolidBrush(COLOR_CLOSE_HOVER), CreateSolidBrush(COLOR_CLOSE_PRESS), \
 		CreatePen(PS_SOLID, 1, COLOR_CLOSE_LEAVE), CreatePen(PS_SOLID, 1, COLOR_CLOSE_HOVER), CreatePen(PS_SOLID, 1, COLOR_CLOSE_PRESS), \
 		Main.DefFont, 1, COLOR_WHITE, L"Close");
-	Main.CreateButton(165, 92, 135, 45, 0, L"远程极域窗口化", L"rwindow");
-	Main.CreateButton(370, 155, 100, 45, 0, L"切换网卡", L"rip");
-	Main.CreateButton(800, 55, 30, 30, 0, L"...", L"ri");
-
-	Main.CreateButton(40, 390, 105, 45, 0, L"退出教师端", L"rfile");
-	//Main.CreateButton(165, 390, 105, 45, 0, L"测试", L"rfile2");
-	//Main.CreateButton(160, 395, 30, 35, 0, L"...", L"mfile");
-	//Main.CreateEditEx(200, 395, 100, 35, 1, L"<FOLDER_DESKTOP>", L"rfile", 0, true);
+	
 
 	Main.CreateText(620, 60, 0, L"tr", COLOR_BLACK);
 	List = CreateWindowW(L"ListBox", NULL, WS_CHILD | LBS_STANDARD, (int)(620 * Main.DPI), (int)(90 * Main.DPI), (int)(210 * Main.DPI), (int)(370 * Main.DPI), Main.hWnd, (HMENU)1, Main.hInstance, 0);
 	::SendMessage(List, WM_SETFONT, (WPARAM)Main.DefFont, 1);
 	ShowWindow(List, SW_SHOW);
-	SetWindowPos(Main.hWnd, 0, 200, 200, (int)(850 * Main.DPI), (int)(472 * Main.DPI), NULL);
 	Main.Width = 850; Main.Height = 472;
 
 	typedef DWORD(CALLBACK* SEtProcessDPIAware)(void);
@@ -2057,9 +1598,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)//初始化
 	huser = LoadLibrary(L"user32.dll");//在一些笔记本上有用
 	SetProcessDPIAware = (SEtProcessDPIAware)GetProcAddress(huser, "SetProcessDPIAware");
 	if (SetProcessDPIAware != NULL)SetProcessDPIAware();
-	ShowWindow(Main.hWnd, nCmdShow);
+	ShowWindow(Main.hWnd, SW_SHOW);
 	Main.Redraw();//第一次创建窗口时全部重绘
-
 
 	return TRUE;
 }
@@ -2072,7 +1612,7 @@ void act2016(int cse)
 		wchar_t tmp[100], num[10];
 		char tmp2[100]; size_t t;
 		_itow_s(i, num, 10);
-		catstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
+		MakeIPstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
 		wcstombs_s(&t, tmp2, tmp, 30);
 		shutdown2016(tmp2, cse);
 	}
@@ -2085,63 +1625,12 @@ void act2010(int cse)
 		wchar_t tmp[100], num[10];
 		char tmp2[100]; size_t t;
 		_itow_s(i, num, 10);
-		catstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
+		MakeIPstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
 		wcstombs_s(&t, tmp2, tmp, 30);
 		shutdown2010(tmp2, cse);
 	}
 }
-void act2016test()
-{
-	//char paath[513] = "C:\\Users\\ABC\\Desktop\\1.ini";
-	char* st1;
-	wchar_t* str_tmp,st2[999];
-	FILE* f;
-	long length;
-	//以二进制形式打开文件
-	f = _wfopen(L"C:\\Users\\ABC\\Desktop\\1.ini", L"rb");
-	if (NULL == f)return;
-	//把文件的位置指针移到文件尾
-	fseek(f, 0, SEEK_END);
-	//获取文件长度;
-	length = ftell(f);
-	//把文件的位置指针移到文件开头
-	fseek(f, 0, SEEK_SET);
-	st1 = new char[length * 2 + 1500];
-	str_tmp = new wchar_t[length + 1500];
-	//st2 = new wchar_t[length + 1500];
-	fread(st1, 1, length, f);
-	st1[length] = '\0';
-	fclose(f);
-	charTowchar(st1, str_tmp, sizeof(wchar_t) * length);
-	//s(length);
-	wcscpy(st2, L"cmd.exe \"/c echo|set /p=\"");
-	const wchar_t c[]= L"\">>c:\\zouxi\\1.7zz\"";
-	for (int i = 0; i < length; ++i) { st2[i + 25] = str_tmp[i];if (st2[i + 25] == 0)st2[i + 25] = 48; }
-	for (int i = 0; i < 19; ++i)st2[i + 25 + length] = c[i];
-	//s(str_tmp);
-	//wcscat(st2, str_tmp);
-	//wcscat(st2, L"\">>c:\\zouxi\\1.7zz\"");
-	int a = min(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str)), b = max(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str));
-	//wchar_t txt[1001]; wcscpy_s(txt, text); size_t l = wcslen(txt);
-	char txt2[10001] = { 0 };
-	s(st2);
 
-	for (int i = 0; i < (int)(length+45); ++i) {
-		txt2[i * 2 + 1] = (st2[i] >> 8); txt2[i * 2] = st2[i] - ((st2[i] >> 8) << 8);
-	}
-	for (int i = a; i <= b; ++i)
-	{
-		wchar_t tmp[100], num[10];
-		char tmp2[100]; size_t t;
-		_itow_s(i, num, 10);
-		catstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
-		wcstombs_s(&t, tmp2, tmp, 30);
-		text2016(tmp2, 1, txt2, 2*(length + 45));
-	}
-	delete[]str_tmp;
-	//delete[]st2;
-	delete[]st1;
-}
 void act2016text(int cse, wchar_t* text)
 {
 	int a = min(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str)), b = max(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str));
@@ -2157,7 +1646,7 @@ void act2016text(int cse, wchar_t* text)
 		wchar_t tmp[100], num[10];
 		char tmp2[100]; size_t t;
 		_itow_s(i, num, 10);
-		catstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
+		MakeIPstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
 		wcstombs_s(&t, tmp2, tmp, 30);
 		text2016(tmp2, cse, txt2, l * 2);
 	}
@@ -2195,8 +1684,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 				SendMessage(List, LB_GETTEXT, ::SendMessage(List, LB_GETCURSEL, 0, 0), (LPARAM)ip3);
 				*wcsstr(ip3, L"|") = 0;
 				WideCharToMultiByte(CP_ACP, 0, ip3, -1, ip4, 300, NULL, NULL);
-				//s(ip4);
-				RefreshIP(ip4);
+				
+				SendIP2Edit(ip4);
 				Main.Redraw();
 				ShowWindow(List, SW_HIDE);
 				ShowWindow(List, SW_SHOW);
@@ -2262,9 +1751,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		POINT point; GetCursorPos(&point); ScreenToClient(Main.hWnd, &point);
 		Main.EditGetNewInside(point);//试图预先确定一下是否点在某个控件内;
 		Main.ButtonGetNewInside(point);
-		Main.CheckGetNewInside(point);
-		Main.AreaGetNewInside(point);//点在控件内 -> 触发控件特效
-		if (Main.CoverButton != -1 || Main.CoverCheck != 0 || Main.CoverEdit != 0 || Main.CoverArea != 0)Main.LeftButtonDown();
+		Main.CheckGetNewInside(point);//点在控件内 -> 触发控件特效
+		if (Main.CoverButton != -1 || Main.CoverCheck != 0 || Main.CoverEdit != 0)Main.LeftButtonDown();
 		else
 		{
 			PostMessage(Main.hWnd, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);//点在外面 -> 拖动窗口
@@ -2295,6 +1783,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 
 		switch (Main.CoverButton)//按钮
 		{
+		
 		case 1:if (Main.Check[1].Value)act2016(1);
 			if (Main.Check[2].Value)act2010(1);
 			break;
@@ -2313,19 +1802,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		case 5://text
 			act2016text(3, Main.Edit[3].str);
 			break;
-		case 6://remote close
+		case 6:
+			filestart(true); 
+			break;
+		case 7:
+if (Main.Check[1].Value)act2016(4); //remote windowing
+			
+			break;
+		case 8://remote close
+		{
 			if (Main.Check[1].Value)act2016(3);
 			if (Main.Check[2].Value)act2010(3);
-			break;
-		case 7://x
-			PostQuitMessage(0);
-			break;
-		case 8:if (Main.Check[1].Value)act2016(4);//remote windowing
-			break;
+		break;
+		}
 		case 9:
 		{
 			if (++curips >= numofips)curips = 0;
-			RefreshIP(Allips[curips]);
+			SendIP2Edit(Allips[curips]);
 			SearchComputers(Allips[curips]);
 			Main.Redraw();
 			break;
@@ -2334,47 +1827,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		{CreateThread(0, 0, SearchAll, 0, 0, NULL);
 		break;
 		}
-		case 11:
-		{
-		//a:
-		//	if (*MFName == 0)
-		//	{
-		//		OPENFILENAME ofn = { 0 };
-		//		char strFile[MAX_PATH * 2] = { 0 };
-
-		//		ofn.lStructSize = sizeof(OPENFILENAME);
-		//		ofn.lpstrFile = MFName;
-		//		ofn.nMaxFile = MAX_PATH;
-		//		ofn.Flags = OFN_FILEMUSTEXIST;
-		//		ofn.lpstrInitialDir = Path;
-		//		if (!GetOpenFileName(&ofn))goto a;
-		//	}
-		//	//while (1)
-		//	if (Main.Edit[9].str != 0)if (*Main.Edit[9].str != 0)wcscpy_s(RFPath, Main.Edit[9].str)/*, s(Main.Edit[9].str)*/;
-			filestart(true);//, Sleep(100);
-		//	file2016(2);
-			//Sleep(500);
-			//filestart(false);
+		case 11://x
+			PostQuitMessage(0);
 			break;
-		}
-		case 12:
-		{
-			act2016test();
+		default:
+			s(0);
 			break;
-		}
-		/*case 12:
-		{
-			OPENFILENAME ofn = { 0 };
-			char strFile[MAX_PATH * 2] = { 0 };
-
-			ofn.lStructSize = sizeof(OPENFILENAME);
-			ofn.lpstrFile = MFName;
-			ofn.nMaxFile = MAX_PATH;
-			ofn.Flags = OFN_FILEMUSTEXIST;
-			ofn.lpstrInitialDir = Path;
-			GetOpenFileName(&ofn);
-			break;
-		}*/
 		}
 
 		if (Main.CoverCheck != 0)

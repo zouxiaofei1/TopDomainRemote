@@ -24,6 +24,18 @@
     <ClInclude Include="GUI.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="TestFunctions.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Hotkey.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="FileSender.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Actions.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
