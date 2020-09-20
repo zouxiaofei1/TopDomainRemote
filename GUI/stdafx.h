@@ -20,8 +20,11 @@
 
 // TODO: 在此处引用程序需要的其他头文件
 #include <map>
-#include <winsock.h>
+
+#include <winsock2.h>
+#include <WS2tcpip.h>
 #include <WinBase.h>
 #include <stack>
 #include <Shlobj.h>
 #include <commdlg.h>//包括"选择文件"对话框的头文件
+#include <iphlpapi.h>

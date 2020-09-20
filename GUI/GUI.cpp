@@ -1,4 +1,4 @@
-﻿//这是TopDomainTools工程源代码的主文件
+﻿//这是TopDomainRemote工程源代码的主文件
 //by zouxiaofei1 2015 - 2020
 
 //头文件
@@ -12,6 +12,7 @@
 #pragma comment(lib,"Imm32.lib")//自定义输入法位置用的Lib
 #pragma warning(disable:4996)
 #pragma warning(disable:4838)
+#pragma warning(disable:28159)
 #pragma warning(disable:4309)//禁用一些烦人的警告
 
 //部分(重要)函数的前向声明
@@ -28,7 +29,22 @@ HBITMAP hBmp, lBmp;//主窗口hbmp
 HWND List;
 HINSTANCE hInst;//当前实例备份变量
 
-class CathyClass//控件主类
+//其他全局变量
+char ip[30];//自己的主ip
+char Allips[20][30];//自己的所有ip
+int numofips, curips;//ip数量 & 当前显示的ip
+struct SearchThreadStruct
+{
+	int ipBegin;
+	int ipEnd;
+	bool hostname;
+	char* ip123;
+	int ii;
+};
+struct IPandi { char* ip; int i; };
+char IPsearched[30][256];//判断ip是否被寻找过 0->未寻找 1->只寻找过ip 2->完全寻找
+
+class CathyClass//从TopDomainTools那里抄过来的Class
 {
 public:
 	void InitClass(HINSTANCE HInstance)//新Class使用之前最好Init一下
@@ -47,17 +63,20 @@ public:
 	{
 		unsigned int tmp = Hash(ID);
 		if (str[tmp] != 0)str[tmp] = 0;//删除当前ID中原有的字符串
-		str[tmp] = new wchar_t[wcslen(Str) + 1];//申请相应的内存空间
+		str[tmp] = new wchar_t[wcslen(Str) + 20];//申请相应的内存空间
 		wcscpy(str[tmp], Str);//复制新的
 	}
 
 	void CreateString(LPCWSTR Str, LPCWSTR ID)//创建新字符串
 	{//注意:应仅在使用常量初始化时使用本函数,用变量初始化是建议CurString++再用SetStr
 		++CurString;
-		if (Str != NULL)//仅复制指针(危险!)
-			string[CurString].str = (LPWSTR)Str;
-		string[CurString].ID = (LPWSTR)ID;
-		str[Hash(ID)] = string[CurString].str;
+		if (Str != NULL)
+		{
+			str[Hash(ID)] = new wchar_t[wcslen(Str) + 1];
+			wcscpy(str[Hash(ID)], Str);
+		}
+		string[CurString].ID = str[Hash(ID)];
+		string[CurString].str = (LPWSTR)Str;
 	}
 	void CreateEditEx(int Left, int Top, int Wid, int Hei, int Page, LPCWSTR name, LPCWSTR ID, HFONT Font, BOOL Ostr)
 	{//创建自绘输入框
@@ -298,6 +317,7 @@ public:
 				SetTextColor(hdc, Text[i].rgb);
 				SelectObject(hdc, DefFont);//文字的字体缩放效果不太理想
 				wchar_t* tmp = str[Hash(Text[i].Name)];
+				if (tmp == 0)break;
 				TextOutW(hdc, (int)(Text[i].Left * DPI), (int)(Text[i].Top * DPI), tmp, (int)wcslen(tmp));
 			}
 			if (cur != 0)return;
@@ -1116,27 +1136,7 @@ void CALLBACK TimerProc(HWND hWnd, UINT nMsg, UINT nTimerid, DWORD dwTime)//主�
 	}
 }
 
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,//程序入口点
-	_In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
-{
-	UNREFERENCED_PARAMETER(hPrevInstance);
-	UNREFERENCED_PARAMETER(lpCmdLine);
-	UNREFERENCED_PARAMETER(nCmdShow);
-
-	if (!InitInstance(hInstance))return FALSE;
-	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GUI));
-
-	MSG msg;
-	// 主消息循环: 
-	while (GetMessageW(&msg, nullptr, 0, 0))
-	{
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
-	return (int)msg.wParam;
-}
-
-void MakeIPstr(wchar_t* dst, wchar_t* s1, wchar_t* s2, wchar_t* s3, wchar_t* s4)
+void MakeIPstr(wchar_t* dst, wchar_t* s1, wchar_t* s2, wchar_t* s3, wchar_t* s4)//将ip地址的四个部分整合在一起
 {
 	wcscpy(dst, s1);
 	wcscat(dst, L".");
@@ -1146,6 +1146,16 @@ void MakeIPstr(wchar_t* dst, wchar_t* s1, wchar_t* s2, wchar_t* s3, wchar_t* s4)
 	wcscat(dst, L".");
 	wcscat(dst, s4);
 }
+
+void SetTextBar(const wchar_t* a)
+{
+	Main.SetStr(a, L"textstr");
+	Main.Readd(4, 11);
+	RECT rc{ 15,470,500,500 };
+	Main.es.push(rc);
+	Main.Redraw(rc);
+}
+
 void shutdown2010(char* a, int cse)
 {
 	WORD wVersionRequested;
@@ -1292,6 +1302,49 @@ void shutdown2016(char* a, int cse)
 	return;
 }
 
+void act2016(int Case)//将关机or重启命令依次执行(2015~2017版)
+{
+	int a = min(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str)), b = max(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str));
+	for (int i = a; i <= b; ++i)
+	{
+		wchar_t tmp[100], num[10];
+		char tmp2[100]; size_t t;
+		_itow_s(i, num, 10);
+		MakeIPstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
+		wcstombs_s(&t, tmp2, tmp, 30);
+		wchar_t txt[120];
+		if (Case == ACT_SHUTDOWN)wcscpy_s(txt, L"正在关机:");
+		if (Case == ACT_RESTART)wcscpy_s(txt, L"正在重启:");
+		if (Case == ACT_CLOSE)wcscpy_s(txt, L"正在关闭对方程序:");
+		if (Case == ACT_WINDOWFY)wcscpy_s(txt, L"正在窗口化极域:");
+		wcscat_s(txt, tmp);
+		SetTextBar(txt);
+		shutdown2016(tmp2, Case);
+	}
+	SetTextBar(L"命令执行完成");
+}
+void act2010(int Case)//将关机or重启命令依次执行(2007 2010版)
+{
+	int a = min(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str)), b = max(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str));
+	for (int i = a; i <= b; ++i)
+	{
+		wchar_t tmp[100], num[10];
+		char tmp2[100]; size_t t;
+		_itow_s(i, num, 10);
+		MakeIPstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
+		wcstombs_s(&t, tmp2, tmp, 30);
+		wchar_t txt[120];
+		if (Case == ACT_SHUTDOWN)wcscpy_s(txt, L"正在关机:");
+		if (Case == ACT_RESTART)wcscpy_s(txt, L"正在重启:");
+		if (Case == ACT_CLOSE)wcscpy_s(txt, L"正在关闭对方程序:");
+		if (Case == ACT_WINDOWFY)wcscpy_s(txt, L"正在窗口化极域:");
+		wcscat_s(txt, tmp);
+		SetTextBar(txt);
+		shutdown2010(tmp2, Case);
+	}
+	SetTextBar(L"命令执行完成");
+}
+
 void text2016(char* a, int cse, char* text, int len)
 {
 	WORD wVersionRequested;
@@ -1319,8 +1372,6 @@ void text2016(char* a, int cse, char* text, int len)
 	char bb[955] = { 0x44,0x4d,0x4f,0x43,0x00,0x00,0x01,0x00,0x9e,0x03,0x00,0x00,0x8c,0x35,0x18,0xc4,0x67,0x02,0x59,0x46,0x82,0x64,0x29,0x2b,0x99,0xa6,0xbb,0x4a,0x20,0x4e,0,0,0xc0,0xa8,0x50,0x01,0x91,0x03,0x00,0x00,0x91,0x03,0x00,0x00 ,0x00 ,0x08 ,0x00 ,0x00,0x00 ,0x00 ,0x00 ,0x00 ,0x05 ,0x00 ,0x00 ,0x00 };
 	char cc[955] = { 0x44,0x4d,0x4f,0x43,0x00,0x00,0x01,0x00,0x38,0x00,0x00,0x00,0x9e,0x95,0xd1,0xb0,0x9e,0x6a,0xc7,0x42,0x9a,0x90,0x54,0xac,0xbe,0x11,0xe4,0x03,0x20,0x4e,0,0,0xc0,0xa8,0x50,0x01,0x85,0x01,0x00,0x00,0x85,0x01,0x00,0x00 ,0x00 ,0x02 ,0x00 ,0x00,0x00 ,0x00 ,0x00 ,0x00 ,0x18 ,0x00 ,0x00 ,0x00 ,0x00 ,0x00 ,0x00 };
 
-	//char cc[583] = { 0x44,0x4d,0x4f,0x43,0x00,0x00,0x01,0x00,0x2a,0x02,0x00,0x00,0x70,0xc5,0x84,0xb1,0x6c,0xa1,0x55,0x4c,0x9f,0x55,0x46,0x27,0x77,0x37,0x73,0x5d,0x20,0x4e,0,0,0xc0,0xa8,0x50,0x01,0x1d,0x02,0x00,0x00,0x1d,0x02,0x00,0x00 ,0x00 ,0x02 ,0x00 ,0x00,0x00 ,0x00 ,0x00 ,0x00 ,0x02 ,0x00 ,0x00 ,0x10 ,0x0f ,0x00 ,0x00 ,0x00 ,0x01 ,0x00 ,0x00 ,0x00 ,0x00,0x00 ,0x00 ,0x00 ,0x59 ,0x65 ,0x08 ,0x5e ,0x06 ,0x5c ,0x73 ,0x51 ,0xed ,0x95 ,0xa8 ,0x60 ,0x84 ,0x76 ,0x94 ,0x5e ,0x28 ,0x75 ,0x0b ,0x7a ,0x8f ,0x5e };
-
 	if (cse == 1)
 	{
 		//strcat(aa, text);
@@ -1341,8 +1392,6 @@ void text2016(char* a, int cse, char* text, int len)
 	}
 	if (cse == 3)
 	{
-		//strcat(aa, text);
-		//aa[58] = 0;
 		bb[19] = (char)GetTickCount();
 		bb[20] = (char)(GetTickCount() * 2);
 		for (int i = 56; i < 56 + len * 2; ++i)bb[i] = text[i - 56];
@@ -1353,16 +1402,41 @@ void text2016(char* a, int cse, char* text, int len)
 	WSACleanup();
 	return;
 }
-char ip[30];
-char Allips[20][30];
-int numofips, curips;
+
+void act2016text(int Case, wchar_t* text)//将带有文字的命令依次执行
+{
+	int a = min(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str)), b = max(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str));
+	wchar_t txt[1001] = { 0 };
+	if (wcslen(text) > 1000)text[1000] = 0;
+	wcscpy_s(txt, text);
+	size_t l = wcslen(txt);
+	char txt2[2001] = { 0 };
+
+	for (int i = 0; i < (int)l; ++i) {
+		txt2[i * 2 + 1] = (txt[i] >> 8); txt2[i * 2] = txt[i] - ((txt[i] >> 8) << 8);
+	}
+	for (int i = a; i <= b; ++i)
+	{
+		wchar_t tmp[100], num[10];
+		char tmp2[100]; size_t t;
+		_itow_s(i, num, 10);
+		MakeIPstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
+		wcstombs_s(&t, tmp2, tmp, 30);
+		wchar_t txt[25] = L"发送中:";
+		wcscat_s(txt, tmp);
+		SetTextBar(txt);
+		text2016(tmp2, Case, txt2, l * 2);
+	}
+	SetTextBar(L"命令执行完成");
+}
+
 void CheckIP()//取本机的ip地址  
 {
 	WSADATA wsaData;
 	char name[155];
 	PHOSTENT hostinfo;
 	if (WSAStartup(MAKEWORD(2, 0), &wsaData) == 0)
-	{//具体原理不太清楚，详见百科
+	{
 		if (gethostname(name, sizeof(name)) == 0)
 			if ((hostinfo = gethostbyname(name)) != NULL)
 			{//wip存ip地址字符串
@@ -1385,122 +1459,165 @@ void SendIP2Edit(char* ip)//将获得的IP地址应用到Edit中
 	charTowchar(iptmp, temp, sizeof(iptmp));
 
 	pointer = wcsstr(pointer2, L".");
+	if (pointer == 0)return;
 	*pointer = 0;
 	Main.SetEditStrOrFont(pointer2, 0, 4);
 	pointer2 = pointer + 1;
 	pointer = wcsstr(pointer2, L".");
+	if (pointer == 0)return;
 	*pointer = 0;
 	Main.SetEditStrOrFont(pointer2, 0, 5);
 	pointer2 = pointer + 1;
 	pointer = wcsstr(pointer2, L".");
+	if (pointer == 0)return;
 	*pointer = 0;
 	Main.SetEditStrOrFont(pointer2, 0, 6);
 	Main.SetEditStrOrFont(pointer + 1, 0, 7);
 	Main.SetEditStrOrFont(pointer + 1, 0, 8);
 }
-struct SearchThreada
-{
-	int a;
-	bool b;
-};
-std::map<unsigned int, SearchThreada>addrmap;
-char curip[30];
-#include <iphlpapi.h>
 
 DWORD WINAPI SearchThread(LPVOID pM)
 {
-	SearchThreada d = *(SearchThreada*)pM;
-	int cur = d.a;
-	char ip2[30], at[100];
-	strcpy_s(ip2, curip);
-	strcat_s(ip2, ".");
-	_itoa_s(cur, at, 10);
-	strcat_s(ip2, at);
-	int  l = Hash(ip2);
-	if ((addrmap[l].a && addrmap[l].b) || (addrmap[l].a && !addrmap[l].b && !d.b))return 0;
-	if (d.b)
+	SearchThreadStruct* sts = (SearchThreadStruct*)pM;
+	int begin = sts->ipBegin, end = sts->ipEnd, ii = sts->ii;
+	BOOL host = sts->hostname;
+	char ip123[30], tmp[10] = { 0 };
+	strcpy_s(ip123, sts->ip123);
+	strcat_s(ip123, ".");
+	WSADATA wsaData;
+	WSAStartup(MAKEWORD(2, 2), &wsaData);
+	for (int i = begin; i <= end; ++i)
 	{
-		unsigned int addr = inet_addr(ip2);
+		char fullIP[100];
+		wchar_t txt[30] = L"搜索中:", temp2[20];
+		if ((IPsearched[ii][i] == 1 && (!host)) || IPsearched[ii][i] == 2)continue;//寻找过就不要再寻找了
+		strcpy_s(fullIP, ip123);
+		_itoa_s(i, tmp, 10);
+		strcat_s(fullIP, tmp);
 
-		struct hostent* pHost1 = gethostbyaddr((char*)&addr, 4, PF_INET);
-		if (pHost1)
+		mbstowcs(temp2, fullIP, 20);
+		wcscat_s(txt, temp2);
+		SetTextBar(txt);
+
+		if (host)
 		{
-			wchar_t wat[101];
-			strcpy_s(at, ip2);
-			if (addrmap[l].a == TRUE && addrmap[l].b == true)return 0;
-			addrmap[l].a = addrmap[l].b = true;
-			strcat_s(at, "|");
-			strcat_s(at, pHost1->h_name);
-			MultiByteToWideChar(CP_ACP, 0, at, -1, wat, 100);
-			SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wat);
+			unsigned int addr = inet_addr(fullIP);
+			struct hostent* pHost1 = gethostbyaddr((char*)&addr, 4, PF_INET);
+			if (pHost1)
+			{
+				IPsearched[ii][i] = 2;
+				wchar_t wHostname[101];
+				strcat_s(fullIP, "|");
+				strcat_s(fullIP, pHost1->h_name);
+				MultiByteToWideChar(CP_ACP, 0, fullIP, -1, wHostname, 100);
+				SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wHostname);
+			}
+		}
+		else
+		{
+			IPAddr ipaddr = inet_addr(fullIP);
+			ULONG ulHopCount, ulRTT;
+			if ((BOOL)GetRTTAndHopCount(ipaddr, &ulHopCount, 1, &ulRTT))
+			{
+				if (IPsearched[ii][i] == 2)continue;
+				wchar_t wName[101];
+				strcat_s(fullIP, "|未知名称");
+				IPsearched[ii][i] = 1;
+				MultiByteToWideChar(CP_ACP, 0, fullIP, -1, wName, 100);
+				SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wName);
+			}
 		}
 	}
-	else
-	{
-		IPAddr ipaddr = inet_addr(ip2);
-		ULONG ulHopCount, ulRTT;
-		if ((BOOL)GetRTTAndHopCount(ipaddr, &ulHopCount, 1, &ulRTT))
-		{
-			wchar_t wat[101];
-			strcpy_s(at, ip2);
-			strcat_s(at, "|未知名称");
-			if (addrmap[l].a == TRUE)return 0;
-			addrmap[l].a = true;
-			MultiByteToWideChar(CP_ACP, 0, at, -1, wat, 100);
-			SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wat);
-		}
-	}
+
+
+	WSACleanup();
 	return 0;
 }
 DWORD WINAPI SearchThreadStarter(LPVOID pM)
 {
-	char a[30];
-	strcpy(a, (const char*)pM);
-	char b[30];
-	strcpy_s(b, a);
-	*strrchr(b, '.') = 0;
-	strcpy_s(curip, b);
-	for (int i = 0; i < 180; ++i)
+	IPandi* str = (IPandi*)pM;
+	int ii = str->i;
+	char fullIP[30];
+	strcpy(fullIP, str->ip);
+	char IP123[30];
+	strcpy_s(IP123, fullIP);
+	*strrchr(IP123, '.') = 0;
+	char* a = IP123 + strlen(IP123) + 1;
+
+	int ipBlock = atoi(a) / 100;
+	if (ipBlock == 2)goto badip;
+	for (int i = 0; i < 4; ++i)
 	{
-		SearchThreada c = { i,true };
-		CreateThread(NULL, 0, SearchThread, &c, 0, NULL);
+		SearchThreadStruct tmp = { i * 15,i * 15 + 14,true,IP123,ii };
+		CreateThread(NULL, 0, SearchThread, &tmp, 0, NULL);
 		Sleep(1);
 	}
-	Sleep(1000);
-	for (int i = 0; i < 180; ++i)
+	for (int i = 0; i < 4; ++i)
 	{
-		SearchThreada c = { i,false };
-		CreateThread(NULL, 0, SearchThread, &c, 0, NULL);
+		SearchThreadStruct tmp = { i * 15,i * 15 + 14,false,IP123,ii };
+		CreateThread(NULL, 0, SearchThread, &tmp, 0, NULL);
+		Sleep(1);
+	}
+badip:
+	for (int i = 0; i < 32; ++i)
+	{
+		SearchThreadStruct tmp = { i * 8,i * 8 + 7,false,IP123,ii };
+		CreateThread(NULL, 0, SearchThread, &tmp, 0, NULL);
 		Sleep(1);
 	}
 	return 0;
 }
-void SearchComputers(char* a)
-{
-	CreateThread(0, 0, SearchThreadStarter, a, 0, NULL);
+
+void SearchComputers(char* fullIP, int i)//寻找指定网卡的局域网中所有电脑的函数
+{//这里传入的a是完整的ip地址
+	IPandi a{ fullIP ,i };
+	CreateThread(0, 0, SearchThreadStarter, &a, 0, NULL);
 	Sleep(2);
 }
 
-DWORD WINAPI SearchAll(LPVOID pM)
+DWORD WINAPI SearchAll(LPVOID pM)//寻找局域网中所有电脑的函数
 {
 	for (int i = 0; i < numofips; ++i)
-	{
-		Sleep(500);
-		SearchComputers(Allips[i]);
-		Sleep(1000);
+	{//按照不同网卡寻找
+		SearchComputers(Allips[i], i);
+		Sleep(100);
 	}
 	return 0;
 }
+
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,//程序入口点
+	_In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
+{
+	UNREFERENCED_PARAMETER(hPrevInstance);
+	UNREFERENCED_PARAMETER(lpCmdLine);
+	UNREFERENCED_PARAMETER(nCmdShow);
+
+	if (!InitInstance(hInstance))return FALSE;//初始化
+	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_GUI));
+
+	MSG msg;
+	// 主消息循环: 
+	while (GetMessageW(&msg, nullptr, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+	return (int)msg.wParam;
+}
+
 BOOL InitInstance(HINSTANCE hInstance)//初始化
 {
 	InitBrushes;//初始化画刷
 
 	InitHotKey();//初始化热键系统
 
+	CreateStr;//创建字符串
+
 	HDC hdcScreen = GetDC(NULL);
 	int yLength = GetDeviceCaps(hdcScreen, VERTRES);
 	DeleteObject(hdcScreen);
 	if (yLength <= 1000)Main.DPI = 0.75;//自动缩放
+	//Main.DPI = 0.75;
 
 	hInst = hInstance; // 将实例句柄存储在全局变量中
 
@@ -1508,20 +1625,14 @@ BOOL InitInstance(HINSTANCE hInstance)//初始化
 	if (!MyRegisterClass(hInst, WndProc, szWindowClass))return FALSE;//初始化Class
 	Main.Obredraw = true;//默认使用ObjectRedraw
 
-	Main.CreateString(L"极域远程工具 v1.1", L"Title");
-	Main.CreateString(L".", L".");//创建字符串
-	Main.CreateString(L"From", L"fr");
-	Main.CreateString(L"To", L"to");
-	Main.CreateString(L"注:2010、2012版极域仅支持远程", L"t1");
-	Main.CreateString(L"关机、重启和远程关闭程序。", L"t2");
-	Main.CreateString(L"不确定版本时两个都选上即可。", L"t3");
-	Main.CreateString(L"本程序仅供学习、交流使用，", L"t4");
-	Main.CreateString(L"请勿用于干扰课堂纪律。", L"t5");
-	Main.CreateString(L"局域网计算机列表", L"tr");
-
 	Main.hWnd = CreateWindowEx(WS_EX_LAYERED, szWindowClass, Main.GetStr(L"Tmain2"), WS_POPUP, 290, 290, \
-		(int)(850 * Main.DPI), (int)(472 * Main.DPI), NULL, nullptr, hInst, nullptr);
+		(int)(791 * Main.DPI), (int)(492 * Main.DPI), NULL, nullptr, hInst, nullptr);//创建主窗口
 	if (!Main.hWnd)return FALSE;
+	Main.Width = 791; Main.Height = 492;
+
+	List = CreateWindowW(L"ListBox", NULL, WS_CHILD | LBS_STANDARD, (int)(578 * Main.DPI), (int)(90 * Main.DPI), (int)(195 * Main.DPI), (int)(360 * Main.DPI), Main.hWnd, (HMENU)1, Main.hInstance, 0);
+	::SendMessage(List, WM_SETFONT, (WPARAM)Main.DefFont, 1);//创建List
+	ShowWindow(List, SW_SHOW);
 
 	Main.ButtonEffect = TRUE;//开启按钮渐变色特效
 	SetTimer(Main.hWnd, 1, 33, (TIMERPROC)TimerProc);
@@ -1529,24 +1640,7 @@ BOOL InitInstance(HINSTANCE hInstance)//初始化
 
 	CheckIP();//取本机的ip地址  
 
-
-	Main.CreateFrame(18, 68, 305, 382, 0, L" 命令 ");//创建各种控件
-	Main.CreateFrame(345, 70, 235, 143, 0, L" IP地址 ");
-	Main.CreateFrame(345, 240, 235, 85, 0, L" 极域版本 ");
-	Main.CreateText(55, 17, 0, L"Title", RGB(255, 255, 255));
-	Main.CreateText(410, 122, 0, L".", 0);
-	Main.CreateText(460, 122, 0, L".", 0);
-	Main.CreateText(510, 122, 0, L".", 0);
-	Main.CreateText(520, 85, 0, L"fr", 0);
-	Main.CreateText(530, 146, 0, L"to", 0);
-	Main.CreateCheck(365, 265, 0, 140, L"2016版&2015版");
-	Main.CreateCheck(365, 292, 0, 140, L"2012版&2010版");
-	Main.Check[1].Value = true;
-	Main.CreateText(350, 340, 0, L"t1", 0);
-	Main.CreateText(350, 365, 0, L"t2", 0);
-	Main.CreateText(350, 390, 0, L"t3", 0);
-	Main.CreateText(350, 415, 0, L"t4", COLOR_ORANGE);
-	Main.CreateText(350, 440, 0, L"t5", COLOR_ORANGE);
+	Main.CreateFrame(18, 68, 275, 380, 0, L" 命令 ");//创建各种控件
 
 	Main.CreateButton(38, 92, 105, 45, 0, L"远程关机", L"shutdown");
 	Main.CreateButton(38, 151, 105, 45, 0, L"远程重启", L"restart");
@@ -1554,102 +1648,69 @@ BOOL InitInstance(HINSTANCE hInstance)//初始化
 	Main.CreateButton(38, 269, 105, 45, 0, L"远程网页", L"net");
 	Main.CreateButton(38, 328, 105, 45, 0, L"远程消息", L"text");
 	Main.CreateButton(38, 387, 105, 45, 0, L"退出教师端", L"rfile");
-	
-	Main.CreateButton(160, 92, 135, 45, 0, L"远程极域窗口化", L"rwindow");
-	Main.CreateButton(160, 152, 135, 45, 0, L"远程关闭程序", L"rclose");
-	
 
-	Main.CreateEditEx(165 + 5, 214, 135 - 10, 40, 1, L"输入内容", L"cmd", 0, false);
-	Main.CreateEditEx(165 + 5, 274, 135 - 10, 40, 1, L"输入网页名", L"net", 0, false);
-	Main.CreateEditEx(165 + 5, 334, 135 - 10, 40, 1, L"输入消息", L"net", 0, false);
+	Main.CreateButton(160, 92, 110, 45, 0, L"远程窗口化", L"rwindow");
+	Main.CreateButton(160, 151, 110, 45, 0, L"远程关闭程序", L"rclose");
 
-	Main.CreateEditEx(370 + 5, 110, 35 - 10, 30, 1, L"192", L"IP1", 0, true);//4
-	Main.CreateEditEx(420 + 5, 110, 35 - 10, 30, 1, L"168", L"IP2", 0, true);//5
-	Main.CreateEditEx(470 + 5, 110, 35 - 10, 30, 1, L"1", L"IP3", 0, true);//6
-	Main.CreateEditEx(520 + 5, 110, 35 - 10, 30, 1, L"1", L"IP4", 0, true);//7
-	Main.CreateEditEx(520 + 5, 168, 35 - 10, 30, 1, L"255", L"IP5", 0, true);//8
+	Main.CreateEditEx(160 + 5, 210 + 1, 110 - 10, 45, 1, L"输入内容", L"cmd", 0, false);
+	Main.CreateEditEx(160 + 5, 269 + 1, 110 - 10, 45, 1, L"输入网页名", L"net", 0, false);
+	Main.CreateEditEx(160 + 5, 328 + 1, 110 - 10, 45, 1, L"输入消息", L"net", 0, false);
+
+	Main.CreateFrame(315, 70, 225, 143, 0, L" IP地址 ");
+
+	Main.CreateEditEx(335 + 5, 110, 35 - 10, 30, 1, L"192", L"IP1", 0, true);
+	Main.CreateEditEx(385 + 5, 110, 35 - 10, 30, 1, L"168", L"IP2", 0, true);
+	Main.CreateEditEx(435 + 5, 110, 35 - 10, 30, 1, L"1", L"IP3", 0, true);
+	Main.CreateEditEx(485 + 5, 110, 35 - 10, 30, 1, L"1", L"IP4", 0, true);//from
+	Main.CreateEditEx(485 + 5, 168, 35 - 10, 30, 1, L"255", L"IP5", 0, true);//to
+
+	Main.CreateText(55, 17, 0, L"Title", RGB(255, 255, 255));
+	Main.CreateText(375, 122, 0, L".", 0);
+	Main.CreateText(425, 122, 0, L".", 0);
+	Main.CreateText(475, 122, 0, L".", 0);
+	Main.CreateText(485, 85, 0, L"fr", 0);
+	Main.CreateText(495, 146, 0, L"to", 0);
+
+	Main.CreateFrame(315, 240, 225, 85, 0, L" 极域版本 ");
+	Main.CreateCheck(335, 265, 0, 140, L"2016版 & 2015版");
+	Main.CreateCheck(335, 292, 0, 140, L"2012版 & 2010版");
+	Main.Check[1].Value = true;
+
+	Main.CreateText(320, 340, 0, L"t1", 0);
+	Main.CreateText(320, 365, 0, L"t2", 0);
+	Main.CreateText(320, 390, 0, L"t3", COLOR_ORANGE);
+	Main.CreateText(320, 415, 0, L"t4", COLOR_ORANGE);
 
 	SendIP2Edit(ip);//将获得的IP地址应用到Edit中
 
-	CreateThread(0, 0, SearchAll, 0, 0, NULL);//寻找局域网中的所有电脑
 
-Main.CreateButton(370, 155, 100, 45, 0, L"切换网卡", L"rip");
-	Main.CreateButton(800, 55, 30, 30, 0, L"...", L"ri");
+	Main.CreateButton(335, 155, 100, 45, 0, L"切换网卡", L"rip");
+	Main.CreateButton(737, 55, 33, 30, 0, L"...", L"ri");
 
-	Main.CreateLine(0, 471, 850, 471, 0, COLOR_DARKER_GREY);
-	Main.CreateLine(599, 50, 599, 471, 0, COLOR_DARKER_GREY);
-	Main.CreateLine(849, 50, 849, 471, 0, COLOR_DARKER_GREY);
+	Main.CreateLine(559, 50, 559, 465, 0, COLOR_NORMAL_GREY);
+	Main.CreateLine(791, 50, 791, 510, 0, COLOR_NORMAL_GREY);
+	Main.CreateLine(0, 465, 791, 465, 0, COLOR_NORMAL_GREY);
+	Main.CreateText(15, 471, 0, L"textstr", 0);
 
-	Main.CreateButtonEx(++Main.CurButton, 765, 10, 60, 30, 0, L"×", \
+	Main.CreateButtonEx(++Main.CurButton, 710, 10, 60, 30, 0, L"×", \
 		CreateSolidBrush(COLOR_CLOSE_LEAVE), CreateSolidBrush(COLOR_CLOSE_HOVER), CreateSolidBrush(COLOR_CLOSE_PRESS), \
 		CreatePen(PS_SOLID, 1, COLOR_CLOSE_LEAVE), CreatePen(PS_SOLID, 1, COLOR_CLOSE_HOVER), CreatePen(PS_SOLID, 1, COLOR_CLOSE_PRESS), \
 		Main.DefFont, 1, COLOR_WHITE, L"Close");
-	
 
-	Main.CreateText(620, 60, 0, L"tr", COLOR_BLACK);
-	List = CreateWindowW(L"ListBox", NULL, WS_CHILD | LBS_STANDARD, (int)(620 * Main.DPI), (int)(90 * Main.DPI), (int)(210 * Main.DPI), (int)(370 * Main.DPI), Main.hWnd, (HMENU)1, Main.hInstance, 0);
-	::SendMessage(List, WM_SETFONT, (WPARAM)Main.DefFont, 1);
-	ShowWindow(List, SW_SHOW);
-	Main.Width = 850; Main.Height = 472;
+	Main.CreateText(580, 60, 0, L"tr", COLOR_BLACK);
+
+	ShowWindow(Main.hWnd, SW_SHOW);
+	CreateThread(0, 0, SearchAll, 0, 0, NULL);//寻找局域网中的所有电脑
 
 	typedef DWORD(CALLBACK* SEtProcessDPIAware)(void);
 	SEtProcessDPIAware SetProcessDPIAware;
 	HMODULE huser;//让系统不对这个程序进行缩放
 	huser = LoadLibrary(L"user32.dll");//在一些笔记本上有用
+	if (huser == 0)return TRUE;
 	SetProcessDPIAware = (SEtProcessDPIAware)GetProcAddress(huser, "SetProcessDPIAware");
 	if (SetProcessDPIAware != NULL)SetProcessDPIAware();
-	ShowWindow(Main.hWnd, SW_SHOW);
-	Main.Redraw();//第一次创建窗口时全部重绘
 
 	return TRUE;
-}
-
-void act2016(int cse)
-{
-	int a = min(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str)), b = max(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str));
-	for (int i = a; i <= b; ++i)
-	{
-		wchar_t tmp[100], num[10];
-		char tmp2[100]; size_t t;
-		_itow_s(i, num, 10);
-		MakeIPstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
-		wcstombs_s(&t, tmp2, tmp, 30);
-		shutdown2016(tmp2, cse);
-	}
-}
-void act2010(int cse)
-{
-	int a = min(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str)), b = max(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str));
-	for (int i = a; i <= b; ++i)
-	{
-		wchar_t tmp[100], num[10];
-		char tmp2[100]; size_t t;
-		_itow_s(i, num, 10);
-		MakeIPstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
-		wcstombs_s(&t, tmp2, tmp, 30);
-		shutdown2010(tmp2, cse);
-	}
-}
-
-void act2016text(int cse, wchar_t* text)
-{
-	int a = min(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str)), b = max(_wtoi(Main.Edit[7].str), _wtoi(Main.Edit[8].str));
-	wchar_t txt[1001]; wcscpy_s(txt, text); size_t l = wcslen(txt);
-	char txt2[1001] = { 0 };
-	//s(txt);
-
-	for (int i = 0; i < (int)l; ++i) {
-		txt2[i * 2 + 1] = (txt[i] >> 8); txt2[i * 2] = txt[i] - ((txt[i] >> 8) << 8);
-	}
-	for (int i = a; i <= b; ++i)
-	{
-		wchar_t tmp[100], num[10];
-		char tmp2[100]; size_t t;
-		_itow_s(i, num, 10);
-		MakeIPstr(tmp, Main.Edit[4].str, Main.Edit[5].str, Main.Edit[6].str, num);
-		wcstombs_s(&t, tmp2, tmp, 30);
-		text2016(tmp2, cse, txt2, l * 2);
-	}
 }
 
 //响应函数
@@ -1658,33 +1719,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 	switch (message)
 	{
 	case WM_CLOSE://关闭
+	{
 		PostQuitMessage(0);
 		break;
+	}
 	case WM_CHAR://给Edit转发消息
-	{Main.EditCHAR((wchar_t)wParam); break; }
-	case	WM_CREATE://创建窗口
+	{
+		Main.EditCHAR((wchar_t)wParam);
+		break;
+	}
+	case WM_CREATE://创建窗口
+	{
 		rdc = GetDC(Main.hWnd);//创建bitmap
 		hdc = CreateCompatibleDC(rdc);
-		hBmp = CreateCompatibleBitmap(rdc, 1330, 1100);
+		hBmp = CreateCompatibleBitmap(rdc, 800, 600);
 		SelectObject(hdc, hBmp);
 		ReleaseDC(Main.hWnd, rdc);
 		break;
-	case WM_HOTKEY:Main.EditHotKey((int)wParam); break;
+	}
+	case WM_HOTKEY:
+	{
+		Main.EditHotKey((int)wParam);
+		break;
+	}
 	case WM_COMMAND://当控件接收到消息时会触发这个
 	{
-
 		switch (LOWORD(wParam))//TDT中只用了List一个控件，所以下面的内容肯定是文件选择框了= =
 		{
 		case 1:
 			switch (HIWORD(wParam))
 			{
 			case LBN_SELCHANGE:
-				wchar_t ip3[MAX_PATH];
-				char ip4[300];
+				wchar_t ip3[MAX_PATH] = {0}, * ip5;
+				char ip4[300] = {0};
 				SendMessage(List, LB_GETTEXT, ::SendMessage(List, LB_GETCURSEL, 0, 0), (LPARAM)ip3);
-				*wcsstr(ip3, L"|") = 0;
+				ip5 = wcsstr(ip3, L"|");
+				if (ip5 != 0)*ip5 = 0;
 				WideCharToMultiByte(CP_ACP, 0, ip3, -1, ip4, 300, NULL, NULL);
-				
+
 				SendIP2Edit(ip4);
 				Main.Redraw();
 				ShowWindow(List, SW_HIDE);
@@ -1783,56 +1855,66 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 
 		switch (Main.CoverButton)//按钮
 		{
-		
-		case 1:if (Main.Check[1].Value)act2016(1);
-			if (Main.Check[2].Value)act2010(1);
-			break;
-		case 2://shutdown
+		case 1://远程关机
 		{
-			if (Main.Check[1].Value)act2016(2);
-			if (Main.Check[2].Value)act2010(2);
+			if (Main.Check[1].Value)act2016(ACT_SHUTDOWN);
+			if (Main.Check[2].Value)act2010(ACT_SHUTDOWN);
 			break;
 		}
-		case 3://cmd
-			act2016text(1, Main.Edit[1].str);
-			break;
-		case 4://net
-			act2016text(2, Main.Edit[2].str);
-			break;
-		case 5://text
-			act2016text(3, Main.Edit[3].str);
-			break;
-		case 6:
-			filestart(true); 
-			break;
-		case 7:
-if (Main.Check[1].Value)act2016(4); //remote windowing
-			
-			break;
-		case 8://remote close
+		case 2://远程重启
 		{
-			if (Main.Check[1].Value)act2016(3);
-			if (Main.Check[2].Value)act2010(3);
-		break;
+			if (Main.Check[1].Value)act2016(ACT_RESTART);
+			if (Main.Check[2].Value)act2010(ACT_RESTART);
+			break;
 		}
-		case 9:
+		case 3://远程启动程序
+			if (Main.Edit[1].str == 0)break;
+			if (*Main.Edit[1].str == 0)break;
+			act2016text(ACTEXT_EXE, Main.Edit[1].str);
+			break;
+		case 4://远程网页
+			if (Main.Edit[2].str == 0)break;
+			if (*Main.Edit[2].str == 0)break;
+			act2016text(ACTEXT_HTTP, Main.Edit[2].str);
+			break;
+		case 5://发消息
+			if (Main.Edit[3].str == 0)break;
+			if (*Main.Edit[3].str == 0)break;
+			act2016text(ACTEXT_MESSAGE, Main.Edit[3].str);
+			break;
+		case 6://关闭教师端
+			filestart(true);
+			break;
+		case 7://远程极域窗口化
+		{
+			if (Main.Check[1].Value)act2016(ACT_WINDOWFY);
+			break;
+		}
+		case 8://远程关闭程序
+		{
+			if (Main.Check[1].Value)act2016(ACT_CLOSE);
+			if (Main.Check[2].Value)act2010(ACT_CLOSE);
+			break;
+		}
+		case 9://切换网卡
 		{
 			if (++curips >= numofips)curips = 0;
 			SendIP2Edit(Allips[curips]);
-			SearchComputers(Allips[curips]);
+			SearchComputers(Allips[curips], curips);
 			Main.Redraw();
 			break;
 		}
-		case 10:
-		{CreateThread(0, 0, SearchAll, 0, 0, NULL);
-		break;
+		case 10://重新寻找局域网所有电脑
+		{
+			CreateThread(0, 0, SearchAll, 0, 0, NULL);
+			break;
 		}
-		case 11://x
+		case 11://退出
+		{
 			PostQuitMessage(0);
 			break;
-		default:
-			s(0);
-			break;
+		}
+		break;
 		}
 
 		if (Main.CoverCheck != 0)
