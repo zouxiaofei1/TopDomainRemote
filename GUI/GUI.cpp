@@ -23,7 +23,7 @@ LRESULT	CALLBACK	WndProc(HWND, UINT, WPARAM, LPARAM);//主窗口
 //和绘图有关的全局变量
 const wchar_t szWindowClass[] = L"TopDomainRemote";
 HBRUSH DBlueBrush, LBlueBrush, WhiteBrush, NormalBlueBrush, TitleBrush, LGreyBrush, DGreyBrush, BlackBrush;//各色笔刷
-HPEN BlackPen, WhitePen, TitlePen, CheckGreenPen, NormalGreyPen, NormalBluePen;//各色笔
+HPEN BlackPen, WhitePen, TitlePen, CheckGreenPen, NormalGreyPen, NormalBluePen, LightestGreyPen, LightGreyPen;//各色笔
 HDC hdc, rdc;//主窗口缓冲hdc + 贴图hdc
 HBITMAP hBmp, lBmp;//主窗口hbmp
 HWND List;
@@ -37,7 +37,6 @@ struct SearchThreadStruct
 {
 	int ipBegin;
 	int ipEnd;
-	bool hostname;
 	char* ip123;
 	int ii;
 };
@@ -98,31 +97,28 @@ public:
 	}
 
 	void CreateButtonEx(int Number, int Left, int Top, int Wid, int Hei, int Page, LPCWSTR name, HBRUSH Leave, \
-		HBRUSH Hover, HBRUSH press, HPEN Leave2, HPEN Hover2, HPEN Press2, HFONT Font, BOOL Enabled, COLORREF FontRGB, LPCWSTR ID)
-	{//创建按钮的复杂函数...
-		Button[Number].Left = Left; Button[Number].Top = Top;//上下左右
+		HBRUSH Hover, HBRUSH press, HPEN Leave2, HPEN Hover2, HPEN Press2, HFONT Font, BOOL Enabled, BOOL Dshadow, COLORREF FontRGB, LPCWSTR ID)
+	{//创建按钮的"高级"函数
+		Button[Number].Left = Left; Button[Number].Top = Top;//设置长宽位置等信息
 		Button[Number].Width = Wid; Button[Number].Height = Hei;
 		Button[Number].Page = Page; Button[Number].Leave = Leave;
-		Button[Number].Hover = Hover; Button[Number].Press = press;//离开 & 悬浮 & 点击 , HBRUSH & HPEN
+		Button[Number].Hover = Hover; Button[Number].Press = press;//设置离开 & 悬浮 & 点击 三种状态时的 HBRUSH & HPEN
 		Button[Number].Leave2 = Leave2; Button[Number].Hover2 = Hover2;
 		Button[Number].Press2 = Press2; Button[Number].Font = Font;
 		Button[Number].Enabled = Enabled; Button[Number].FontRGB = FontRGB;
-		wcscpy_s(Button[Number].Name, name); wcscpy_s(Button[Number].ID, ID); but[Hash(ID)] = Number;
+		wcscpy(Button[Number].Name, name); wcscpy(Button[Number].ID, ID); but[Hash(ID)] = Number;
+		Button[Number].Shadow = Dshadow;
 
 		LOGBRUSH LogBrush;//从HBRUSH中提取出RGB颜色
 		LOGPEN LogPen;//	(渐变色需要)
-		GetObject(Leave, sizeof(LogBrush), &LogBrush); Button[Number].b1[0] = (byte)LogBrush.lbColor;
-		Button[Number].b1[1] = (byte)(LogBrush.lbColor >> 8);
-		Button[Number].b1[2] = (byte)(LogBrush.lbColor >> 16);
-		GetObject(Hover, sizeof(LogBrush), &LogBrush); Button[Number].b2[0] = (byte)LogBrush.lbColor;
-		Button[Number].b2[1] = (byte)(LogBrush.lbColor >> 8);
-		Button[Number].b2[2] = (byte)(LogBrush.lbColor >> 16);
-		GetObject(Leave2, sizeof(LogPen), &LogPen); Button[Number].p1[0] = (byte)LogPen.lopnColor;
-		Button[Number].p1[1] = (byte)(LogPen.lopnColor >> 8);
-		Button[Number].p1[2] = (byte)(LogPen.lopnColor >> 16);
-		GetObject(Hover2, sizeof(LogPen), &LogPen); Button[Number].p2[0] = (byte)LogPen.lopnColor;
-		Button[Number].p2[1] = (byte)(LogPen.lopnColor >> 8);
-		Button[Number].p2[2] = (byte)(LogPen.lopnColor >> 16);
+		GetObject(Leave, sizeof(LogBrush), &LogBrush); Button[Number].b1[0] = GetRValue(LogBrush.lbColor);
+		Button[Number].b1[1] = GetGValue(LogBrush.lbColor); Button[Number].b1[2] = GetBValue(LogBrush.lbColor);
+		GetObject(Hover, sizeof(LogBrush), &LogBrush); Button[Number].b2[0] = GetRValue(LogBrush.lbColor);
+		Button[Number].b2[1] = GetGValue(LogBrush.lbColor); Button[Number].b2[2] = GetBValue(LogBrush.lbColor);
+		GetObject(Leave2, sizeof(LogPen), &LogPen); Button[Number].p1[0] = GetRValue(LogPen.lopnColor);
+		Button[Number].p1[1] = GetGValue(LogPen.lopnColor); Button[Number].p1[2] = GetBValue(LogPen.lopnColor);
+		GetObject(Hover2, sizeof(LogPen), &LogPen); Button[Number].p2[0] = GetRValue(LogPen.lopnColor);
+		Button[Number].p2[1] = GetGValue(LogPen.lopnColor); Button[Number].p2[2] = GetBValue(LogPen.lopnColor);
 	}
 	void CreateButton(int Left, int Top, int Wid, int Hei, int Page, LPCWSTR name, LPCWSTR ID)//创建按钮（简化版）
 	{
@@ -134,7 +130,7 @@ public:
 		Button[CurButton].Leave2 = Button[CurButton].Hover2 = Button[CurButton].Press2 = BlackPen;
 		Button[CurButton].Leave = WhiteBrush; Button[CurButton].Hover = DBlueBrush; Button[CurButton].Press = LBlueBrush;
 		Button[CurButton].b1[0] = Button[CurButton].b1[1] = Button[CurButton].b1[2] = 255;
-		Button[CurButton].b2[0] = 210; Button[CurButton].b2[1] = Button[CurButton].b2[2] = 255;
+		Button[CurButton].b2[0] = 210; Button[CurButton].b2[1] = Button[CurButton].b2[2] = 255; Button[CurButton].Shadow = true;
 	}
 	void CreateFrame(int Left, int Top, int Wid, int Hei, int Page, LPCWSTR name)//创建内容框
 	{
@@ -247,11 +243,29 @@ public:
 					SelectObject(hdc, Button[i].Leave2);
 				}
 			colorok:
+				
 				if (Button[i].Font == NULL)SelectObject(hdc, DefFont); else SelectObject(hdc, Button[i].Font);//字体
 
 				Rectangle(hdc, (int)(Button[i].Left * DPI + 0.5), (int)(Button[i].Top * DPI + 0.5),
 					(int)(Button[i].Left * DPI + Button[i].Width * DPI), (int)(Button[i].Top * DPI + Button[i].Height * DPI));//绘制方框
+				if (Button[i].Shadow && ButtonEffect)//在按钮的右下方画一圈阴影
+				{
+					SelectObject(hdc, NormalGreyPen);
+					MoveToEx(hdc, (int)(Button[i].Left * DPI + Button[i].Width * DPI), (int)(Button[i].Top * DPI + 0.5), 0);
+					LineTo(hdc, (int)(Button[i].Left * DPI + Button[i].Width * DPI), (int)(Button[i].Top * DPI + Button[i].Height * DPI));
+					LineTo(hdc, (int)(Button[i].Left * DPI + 0.5) - 1, (int)(Button[i].Top * DPI + Button[i].Height * DPI));
 
+					SelectObject(hdc, LightGreyPen);
+					MoveToEx(hdc, (int)(Button[i].Left * DPI + Button[i].Width * DPI) + 1, (int)(Button[i].Top * DPI + 0.5), 0);
+					LineTo(hdc, (int)(Button[i].Left * DPI + Button[i].Width * DPI) + 1, (int)(Button[i].Top * DPI + Button[i].Height * DPI) + 1);
+					LineTo(hdc, (int)(Button[i].Left * DPI + 0.5), (int)(Button[i].Top * DPI + Button[i].Height * DPI) + 1);
+
+					SelectObject(hdc, LightestGreyPen);
+					MoveToEx(hdc, (int)(Button[i].Left * DPI + Button[i].Width * DPI) + 2, (int)(Button[i].Top * DPI + 0.5), 0);
+					LineTo(hdc, (int)(Button[i].Left * DPI + Button[i].Width * DPI) + 2, (int)(Button[i].Top * DPI + Button[i].Height * DPI) + 1);
+					MoveToEx(hdc, (int)(Button[i].Left * DPI + Button[i].Width * DPI) + 1, (int)(Button[i].Top * DPI + Button[i].Height * DPI) + 2, 0);
+					LineTo(hdc, (int)(Button[i].Left * DPI + 0.5), (int)(Button[i].Top * DPI + Button[i].Height * DPI) + 2);
+				}
 				RECT rc = GetRECT(i);
 
 				SetBkMode(hdc, TRANSPARENT);//去掉文字背景
@@ -1034,7 +1048,7 @@ public:
 	struct ButtonEx//按钮
 	{
 		long Left, Top, Width, Height, Page, Download, Percent, DownCur, DownTot;
-		bool Enabled = true;
+		BOOL Enabled=TRUE, Shadow;
 		HBRUSH Leave, Hover, Press;//离开 and 悬浮 and 按下
 		HPEN Leave2, Hover2, Press2;
 		HFONT Font;
@@ -1151,7 +1165,7 @@ void SetTextBar(const wchar_t* a)
 {
 	Main.SetStr(a, L"textstr");
 	Main.Readd(4, 11);
-	RECT rc{ 15,470,500,500 };
+	RECT rc{ 15,470,500,492 };
 	Main.es.push(rc);
 	Main.Redraw(rc);
 }
@@ -1222,8 +1236,19 @@ void filestart(bool start)//在发送文件前需要执行这个函数
 	SOCKET sockClient = socket(AF_INET, SOCK_DGRAM, 0);
 	SOCKADDR_IN addrSrv;
 
-	addrSrv.sin_addr.S_un.S_addr = inet_addr("225.2.2.1");
-
+	wchar_t tmp[100];
+	char tmp2[100]; size_t t; int i = 0;
+	wcscpy_s(tmp, Main.Edit[4].str);
+	s(tmp);
+	_itow_s(i, tmp, 10);
+	if (i > 200) {//隐藏的自定义广播端口功能
+		MakeIPstr(tmp, Main.Edit[4].str, L"2", L"2", L"1");
+		wcstombs_s(&t, tmp2, tmp, 30);
+		s(tmp2);
+		addrSrv.sin_addr.S_un.S_addr = inet_addr(tmp2);
+	}
+	else
+		addrSrv.sin_addr.S_un.S_addr = inet_addr("225.2.2.1");
 	addrSrv.sin_family = AF_INET;
 	addrSrv.sin_port = htons(5512);
 
@@ -1374,11 +1399,8 @@ void text2016(char* a, int cse, char* text, int len)
 
 	if (cse == 1)
 	{
-		//strcat(aa, text);
-		//aa[58] = 0;
 		aa[19] = (char)GetTickCount();
 		aa[20] = (char)(rand() * 2);
-		//s(len);
 		for (int i = 60; i < 60 + len * 2; ++i)aa[i] = text[i - 60];
 		sendto(sockClient, aa, 906, 0, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR));
 	}
@@ -1476,11 +1498,11 @@ void SendIP2Edit(char* ip)//将获得的IP地址应用到Edit中
 	Main.SetEditStrOrFont(pointer + 1, 0, 8);
 }
 
+
 DWORD WINAPI SearchThread(LPVOID pM)
 {
 	SearchThreadStruct* sts = (SearchThreadStruct*)pM;
 	int begin = sts->ipBegin, end = sts->ipEnd, ii = sts->ii;
-	BOOL host = sts->hostname;
 	char ip123[30], tmp[10] = { 0 };
 	strcpy_s(ip123, sts->ip123);
 	strcat_s(ip123, ".");
@@ -1490,7 +1512,7 @@ DWORD WINAPI SearchThread(LPVOID pM)
 	{
 		char fullIP[100];
 		wchar_t txt[30] = L"搜索中:", temp2[20];
-		if ((IPsearched[ii][i] == 1 && (!host)) || IPsearched[ii][i] == 2)continue;//寻找过就不要再寻找了
+		if (IPsearched[ii][i] == 1)continue;//寻找过就不要再寻找了
 		strcpy_s(fullIP, ip123);
 		_itoa_s(i, tmp, 10);
 		strcat_s(fullIP, tmp);
@@ -1499,33 +1521,16 @@ DWORD WINAPI SearchThread(LPVOID pM)
 		wcscat_s(txt, temp2);
 		SetTextBar(txt);
 
-		if (host)
+
+		IPAddr ipaddr = inet_addr(fullIP);
+		ULONG ulHopCount, ulRTT;
+		if ((BOOL)GetRTTAndHopCount(ipaddr, &ulHopCount, 1, &ulRTT))
 		{
-			unsigned int addr = inet_addr(fullIP);
-			struct hostent* pHost1 = gethostbyaddr((char*)&addr, 4, PF_INET);
-			if (pHost1)
-			{
-				IPsearched[ii][i] = 2;
-				wchar_t wHostname[101];
-				strcat_s(fullIP, "|");
-				strcat_s(fullIP, pHost1->h_name);
-				MultiByteToWideChar(CP_ACP, 0, fullIP, -1, wHostname, 100);
-				SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wHostname);
-			}
-		}
-		else
-		{
-			IPAddr ipaddr = inet_addr(fullIP);
-			ULONG ulHopCount, ulRTT;
-			if ((BOOL)GetRTTAndHopCount(ipaddr, &ulHopCount, 1, &ulRTT))
-			{
-				if (IPsearched[ii][i] == 2)continue;
-				wchar_t wName[101];
-				strcat_s(fullIP, "|未知名称");
-				IPsearched[ii][i] = 1;
-				MultiByteToWideChar(CP_ACP, 0, fullIP, -1, wName, 100);
-				SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wName);
-			}
+			if (IPsearched[ii][i] == 1)continue;
+			wchar_t wName[101];
+			IPsearched[ii][i] = 1;
+			MultiByteToWideChar(CP_ACP, 0, fullIP, -1, wName, 100);
+			SendMessage(List, LB_ADDSTRING, 0, (LPARAM)wName);
 		}
 	}
 
@@ -1545,45 +1550,37 @@ DWORD WINAPI SearchThreadStarter(LPVOID pM)
 	char* a = IP123 + strlen(IP123) + 1;
 
 	int ipBlock = atoi(a) / 100;
-	if (ipBlock == 2)goto badip;
-	for (int i = 0; i < 4; ++i)
+	if (ipBlock != 2)
 	{
-		SearchThreadStruct tmp = { i * 15,i * 15 + 14,true,IP123,ii };
-		CreateThread(NULL, 0, SearchThread, &tmp, 0, NULL);
-		Sleep(1);
+		for (int i = 0; i < 3; ++i)
+		{
+			SearchThreadStruct tmp = { i * 20,i * 20 + 19,IP123,ii };
+			CreateThread(NULL, 0, SearchThread, &tmp, 0, NULL);
+			Sleep(1);
+		}
+		Sleep(5000);
 	}
-	for (int i = 0; i < 4; ++i)
+	for (int i = 0; i < 2; ++i)
 	{
-		SearchThreadStruct tmp = { i * 15,i * 15 + 14,false,IP123,ii };
-		CreateThread(NULL, 0, SearchThread, &tmp, 0, NULL);
-		Sleep(1);
-	}
-badip:
-	for (int i = 0; i < 32; ++i)
-	{
-		SearchThreadStruct tmp = { i * 8,i * 8 + 7,false,IP123,ii };
+		SearchThreadStruct tmp = { i * 128,i * 128 + 127,IP123,ii };
 		CreateThread(NULL, 0, SearchThread, &tmp, 0, NULL);
 		Sleep(1);
 	}
 	return 0;
 }
 
-void SearchComputers(char* fullIP, int i)//寻找指定网卡的局域网中所有电脑的函数
-{//这里传入的a是完整的ip地址
-	IPandi a{ fullIP ,i };
-	CreateThread(0, 0, SearchThreadStarter, &a, 0, NULL);
-	Sleep(2);
-}
 
 DWORD WINAPI SearchAll(LPVOID pM)//寻找局域网中所有电脑的函数
 {
 	for (int i = 0; i < numofips; ++i)
 	{//按照不同网卡寻找
-		SearchComputers(Allips[i], i);
-		Sleep(100);
+		IPandi a{ Allips[i] ,i };
+		CreateThread(0, 0, SearchThreadStarter, &a, 0, NULL);
+		Sleep(2);
 	}
 	return 0;
 }
+
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,//程序入口点
 	_In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
@@ -1626,11 +1623,11 @@ BOOL InitInstance(HINSTANCE hInstance)//初始化
 	Main.Obredraw = true;//默认使用ObjectRedraw
 
 	Main.hWnd = CreateWindowEx(WS_EX_LAYERED, szWindowClass, Main.GetStr(L"Tmain2"), WS_POPUP, 290, 290, \
-		(int)(791 * Main.DPI), (int)(492 * Main.DPI), NULL, nullptr, hInst, nullptr);//创建主窗口
+		(int)(741 * Main.DPI), (int)(494 * Main.DPI), NULL, nullptr, hInst, nullptr);//创建主窗口
 	if (!Main.hWnd)return FALSE;
-	Main.Width = 791; Main.Height = 492;
+	Main.Width = 791; Main.Height = 494;
 
-	List = CreateWindowW(L"ListBox", NULL, WS_CHILD | LBS_STANDARD, (int)(578 * Main.DPI), (int)(90 * Main.DPI), (int)(195 * Main.DPI), (int)(360 * Main.DPI), Main.hWnd, (HMENU)1, Main.hInstance, 0);
+	List = CreateWindowW(L"ListBox", NULL, WS_CHILD | LBS_STANDARD, (int)(578 * Main.DPI), (int)(90 * Main.DPI), (int)(145 * Main.DPI), (int)(360 * Main.DPI), Main.hWnd, (HMENU)1, Main.hInstance, 0);
 	::SendMessage(List, WM_SETFONT, (WPARAM)Main.DefFont, 1);//创建List
 	ShowWindow(List, SW_SHOW);
 
@@ -1685,21 +1682,24 @@ BOOL InitInstance(HINSTANCE hInstance)//初始化
 
 
 	Main.CreateButton(335, 155, 100, 45, 0, L"切换网卡", L"rip");
-	Main.CreateButton(737, 55, 33, 30, 0, L"...", L"ri");
+	Main.CreateButton(687, 55, 33, 28, 0, L"...", L"ri");
 
 	Main.CreateLine(559, 50, 559, 465, 0, COLOR_NORMAL_GREY);
-	Main.CreateLine(791, 50, 791, 510, 0, COLOR_NORMAL_GREY);
-	Main.CreateLine(0, 465, 791, 465, 0, COLOR_NORMAL_GREY);
+	Main.CreateLine(741, 50, 741, 510, 0, COLOR_NORMAL_GREY);
+	Main.CreateLine(0, 464, 741, 464, 0, COLOR_NORMAL_GREY);
+	Main.CreateLine(0, 493, 741, 493, 0, COLOR_NORMAL_GREY);
 	Main.CreateText(15, 471, 0, L"textstr", 0);
 
-	Main.CreateButtonEx(++Main.CurButton, 710, 10, 60, 30, 0, L"×", \
+	Main.CreateButtonEx(++Main.CurButton, 660, 10, 60, 30, 0, L"×", \
 		CreateSolidBrush(COLOR_CLOSE_LEAVE), CreateSolidBrush(COLOR_CLOSE_HOVER), CreateSolidBrush(COLOR_CLOSE_PRESS), \
 		CreatePen(PS_SOLID, 1, COLOR_CLOSE_LEAVE), CreatePen(PS_SOLID, 1, COLOR_CLOSE_HOVER), CreatePen(PS_SOLID, 1, COLOR_CLOSE_PRESS), \
-		Main.DefFont, 1, COLOR_WHITE, L"Close");
+		Main.DefFont, 1,0, COLOR_WHITE, L"Close");
 
-	Main.CreateText(580, 60, 0, L"tr", COLOR_BLACK);
+	Main.CreateText(580, 62, 0, L"tr", COLOR_BLACK);
 
 	ShowWindow(Main.hWnd, SW_SHOW);
+	Main.Redraw();
+
 	CreateThread(0, 0, SearchAll, 0, 0, NULL);//寻找局域网中的所有电脑
 
 	typedef DWORD(CALLBACK* SEtProcessDPIAware)(void);
@@ -1744,17 +1744,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 	}
 	case WM_COMMAND://当控件接收到消息时会触发这个
 	{
-		switch (LOWORD(wParam))//TDT中只用了List一个控件，所以下面的内容肯定是文件选择框了= =
+		switch (LOWORD(wParam))
 		{
 		case 1:
 			switch (HIWORD(wParam))
 			{
 			case LBN_SELCHANGE:
-				wchar_t ip3[MAX_PATH] = {0}, * ip5;
-				char ip4[300] = {0};
+				wchar_t ip3[MAX_PATH] = { 0 };
+				char ip4[300] = { 0 };
 				SendMessage(List, LB_GETTEXT, ::SendMessage(List, LB_GETCURSEL, 0, 0), (LPARAM)ip3);
-				ip5 = wcsstr(ip3, L"|");
-				if (ip5 != 0)*ip5 = 0;
 				WideCharToMultiByte(CP_ACP, 0, ip3, -1, ip4, 300, NULL, NULL);
 
 				SendIP2Edit(ip4);
@@ -1900,7 +1898,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)/
 		{
 			if (++curips >= numofips)curips = 0;
 			SendIP2Edit(Allips[curips]);
-			SearchComputers(Allips[curips], curips);
+			IPandi a{ Allips[curips] ,curips };
+			CreateThread(0, 0, SearchThread, &a, 0, NULL);
 			Main.Redraw();
 			break;
 		}

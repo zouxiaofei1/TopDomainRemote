@@ -9,8 +9,6 @@
 #include "stdafx.h"
 #pragma warning(disable:4996)
 #define MAX_HOTKEY 55
-//void s();
-//void s(int a);
 
 struct MYHOTKEY
 {
